@@ -63,7 +63,7 @@ export const DeflateBreakdown: React.FC<DeflateBreakdownProps> = ({
             currentItem.type === 'literal' ? (
               `Literal: ${currentItem.charCode} ('${currentItem.value}')\n`
             ) : (
-              `LZ77: length=${currentItem.length}, distance=${currentItem.distance}\nText: "${currentItem.text}"\n`
+              `LZ77: length=${currentItem.length}, distance=${currentItem.distance}\nText: "${new TextDecoder().decode(currentItem.text!)}"\n`
             )
           ) : (
             'No data'

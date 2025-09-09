@@ -3,7 +3,7 @@ import { useCompression } from './hooks/useCompression';
 import { InputSection } from './components/InputSection';
 import { StatsSection } from './components/StatsSection';
 import { HexOutput } from './components/HexOutput';
-import { DeflateBreakdown } from './components/DeflateBreakdown';
+import { DeflateStream } from './components/DeflateStream';
 import { HighlightedText } from './components/HighlightedText';
 
 function App() {
@@ -11,15 +11,13 @@ function App() {
     inputText,
     setInputText,
     deflateItems,
-    currentItemIndex,
-    setCurrentItemIndex,
-    currentItem,
-    currentBlock,
+    deflateBlocks,
     stats,
     hexDump,
     highlightedText,
     error,
-    compressAndAnalyze
+    compressAndAnalyze,
+    compressedData
   } = useCompression();
 
   // Auto-compress when input changes
@@ -53,12 +51,10 @@ function App() {
 
         <HexOutput hexDump={hexDump} hasData={hasData} />
 
-        <DeflateBreakdown
+        <DeflateStream
           deflateItems={deflateItems}
-          currentItemIndex={currentItemIndex}
-          onItemChange={setCurrentItemIndex}
-          currentItem={currentItem}
-          currentBlock={currentBlock}
+          deflateBlocks={deflateBlocks}
+          compressedData={compressedData}
         />
 
         <HighlightedText highlightedText={highlightedText} hasData={hasData} />

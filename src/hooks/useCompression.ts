@@ -116,7 +116,7 @@ export const useCompression = () => {
       if (item.type === 'literal') {
         decompressedSoFar += item.value!;
       } else if (item.type === 'lz77') {
-        decompressedSoFar += item.text!;
+        decompressedSoFar += new TextDecoder().decode(item.text!);
       }
     }
     
@@ -134,7 +134,7 @@ export const useCompression = () => {
         if (prevItem.type === 'literal') {
           result += prevItem.value!;
         } else if (prevItem.type === 'lz77') {
-          result += prevItem.text!;
+          result += new TextDecoder().decode(prevItem.text!);
         }
       }
       
@@ -142,7 +142,7 @@ export const useCompression = () => {
       if (currentItem.type === 'literal') {
         result += `<span class="text-highlight">${currentItem.value}</span>`;
       } else if (currentItem.type === 'lz77') {
-        result += `<span class="text-highlight">${currentItem.text}</span>`;
+        result += `<span class="text-highlight">${new TextDecoder().decode(currentItem.text!)}</span>`;
       }
       
       // Add remaining text
@@ -169,6 +169,7 @@ export const useCompression = () => {
     hexDump,
     highlightedText,
     error,
-    compressAndAnalyze
+    compressAndAnalyze,
+    compressedData
   };
 };
