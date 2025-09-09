@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { useCompression } from './hooks/useCompression';
 import { InputSection } from './components/InputSection';
-import { StatsSection } from './components/StatsSection';
 import { DeflateStream } from './components/DeflateStream';
 
 function App() {

@@ -45,22 +45,48 @@ export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
 
   // Get text content for this item
   const getItemText = (item: DeflateItem): string => {
-    if (item.type === "literal") {
-      return item.value || "";
-    } else if (item.type === "lz77" && item.text) {
-      return new TextDecoder().decode(item.text);
+    switch (item.type) {
+      case "literal":
+        return item.value;
+      case "lz77":
+        return new TextDecoder().decode(item.text);
+      case "zlib_header":
+        return `(header)`;
+      case "zlib_checksum":
+        return `checksum=${item.checksum
+          .toString(16)
+          .toUpperCase()
+          .padStart(8, "0")}`;
+      case "dynamic_huffman_header":
+        return `huff(${item.hlit},${item.hdist},${item.hclen})`;
+      case "dynamic_huffman_literal":
+        return String.fromCharCode(item.symbol);
+      case "dynamic_huffman_distance":
+        return new TextDecoder().decode(item.text);
+      case "dynamic_huffman_length":
+        return `${item.text}`;
+      case "end_of_block":
+        return "end";
+      default:
+        return "";
     }
-    return "";
   };
 
   // Get color based on item type
   const getItemTypeColor = (item: DeflateItem): string => {
-    if (item.type === "literal") {
-      return "bg-blue-900 border-blue-600 text-blue-100";
-    } else if (item.type === "lz77") {
-      return "bg-green-900 border-green-600 text-green-100";
+    switch (item.type) {
+      case "dynamic_huffman_literal":
+      case "literal":
+        return "bg-blue-800 border-blue-600 text-blue-100";
+      case "lz77":
+      case "dynamic_huffman_distance":
+        return "bg-amber-800 border-amber-600 text-amber-100";
+      case "dynamic_huffman_header":
+      case "zlib_header":
+        return "bg-rose-800 border-purple-600 text-purple-100";
+      default:
+        return "bg-gray-700 border-gray-500 text-gray-200";
     }
-    return "bg-gray-800 border-gray-600 text-gray-100";
   };
 
   const bits = getItemBits(item);
@@ -71,13 +97,11 @@ export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
 
   return (
     <div
-      className={`relative ${typeColor} flex flex-col items-center min-w-0`}
+      className={`relative ${typeColor} flex flex-col items-center min-w-0 rounded-sm`}
     >
-      <div className={`relative w-full mx-1 font-mono break-all whitespace-pre-wrap`}>
+      <div className={`relative w-full font-mono break-all`}>
         <div
-          className={`absolute top-0 left-0 origin-top-left inline-block tracking-tight overflow-visible whitespace-nowrap ${
-            text.trim() ? "" : "text-gray-300"
-          }`}
+          className={`absolute origin-top-left tracking-tight overflow-visible whitespace-nowrap`}
           style={{ transform: `scaleX(${factor}) scaleY(2)` }}
         >
           {text

@@ -72,7 +72,7 @@ describe('DeflateParser Structure Tests', () => {
         // Verify items have correct structure
         block.items.forEach((item) => {
           expect(item).toHaveProperty('type')
-          expect(['literal', 'lz77']).toContain(item.type)
+          expect(['literal', 'lz77', 'zlib_header', 'zlib_checksum', 'dynamic_huffman_literal', 'dynamic_huffman_distance', 'dynamic_huffman_length', 'end_of_block']).toContain(item.type)
           expect(item).toHaveProperty('position')
           expect(item).toHaveProperty('bitStart')
           expect(item).toHaveProperty('bitEnd')
@@ -235,13 +235,18 @@ describe('DeflateParser Structure Tests', () => {
     // Parse the DEFLATE structure
     const blocks = parser.parseDeflateBlocks(compressedBytes)
     expect(blocks).toBeDefined()
-    expect(blocks.length).toBe(1) // Should be exactly one block
-    expect(blocks[0].type).toBe('fixed') // Should be fixed Huffman
+    expect(blocks.length).toBe(3) // Should be zlib header, fixed block, and zlib checksum
+    expect(blocks[0].type).toBe('uncompressed') // Should be zlib header
+    expect(blocks[1].type).toBe('fixed') // Should be fixed Huffman
+    expect(blocks[2].type).toBe('uncompressed') // Should be zlib checksum
     
     // Reconstruct the original data from DEFLATE items
     let reconstructedBytes = new Uint8Array(0)
     
-    blocks.forEach(block => {
+    // Only process the actual DEFLATE block (skip zlib header and checksum)
+    const deflateBlocks = blocks.filter(block => block.type === 'fixed' || block.type === 'dynamic' || (block.type === 'uncompressed' && block.content !== 'zlib_header' && block.content !== 'zlib_checksum'))
+    
+    deflateBlocks.forEach(block => {
       block.items.forEach(item => {
         if (item.type === 'literal') {
           // Add literal byte

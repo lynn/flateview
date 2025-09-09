@@ -62,8 +62,22 @@ export const DeflateBreakdown: React.FC<DeflateBreakdownProps> = ({
           {currentItem ? (
             currentItem.type === 'literal' ? (
               `Literal: ${currentItem.charCode} ('${currentItem.value}')\n`
+            ) : currentItem.type === 'lz77' ? (
+              `LZ77: length=${currentItem.length}, distance=${currentItem.distance}\nText: "${new TextDecoder().decode(currentItem.text)}"\n`
+            ) : currentItem.type === 'zlib_header' ? (
+              `ZLIB Header: CM=${currentItem.compressionMethod}, CINFO=${currentItem.compressionInfo}, FCHECK=${currentItem.fcheck}, FDICT=${currentItem.fdict}, FLEVEL=${currentItem.flevel}\n`
+            ) : currentItem.type === 'zlib_checksum' ? (
+              `ZLIB Checksum: ${currentItem.checksum.toString(16).toUpperCase().padStart(8, '0')}\n`
+            ) : currentItem.type === 'dynamic_huffman_literal' ? (
+              `Dynamic Huffman Literal: symbol=${currentItem.symbol}, codeLength=${currentItem.codeLength}\n`
+            ) : currentItem.type === 'dynamic_huffman_distance' ? (
+              `Dynamic Huffman Distance: symbol=${currentItem.symbol}, codeLength=${currentItem.codeLength}\n`
+            ) : currentItem.type === 'dynamic_huffman_length' ? (
+              `Dynamic Huffman Length: symbol=${currentItem.symbol}, codeLength=${currentItem.codeLength}\n`
+            ) : currentItem.type === 'end_of_block' ? (
+              `End of Block\n`
             ) : (
-              `LZ77: length=${currentItem.length}, distance=${currentItem.distance}\nText: "${new TextDecoder().decode(currentItem.text!)}"\n`
+              'Unknown item type'
             )
           ) : (
             'No data'

@@ -59,4 +59,8 @@ export class BitReader {
   getPosition(): BitPosition {
     return { byte: this.byteIndex, bit: this.bitIndex };
   }
+
+  getBitPosition(): number {
+    return this.byteIndex * 8 + this.bitIndex;
+  }
 }
