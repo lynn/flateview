@@ -104,7 +104,7 @@
             padding: 15px;
             border-radius: 8px;
             font-family: 'Courier New', monospace;
-            font-size: 12px;
+            font-size: 14px;
             line-height: 1.4;
             height: 300px;
             overflow-y: auto;
@@ -130,6 +130,8 @@
             justify-content: space-between;
             margin-bottom: 5px;
             font-size: 14px;
+            flex-wrap: wrap;
+            gap: 15px;
         }
 
         .stat-value {
@@ -256,6 +258,12 @@
             font-weight: bold;
         }
 
+        .hex-highlight {
+            background: #2196f3;
+            color: #fff;
+            font-weight: bold;
+        }
+
         .no-data {
             color: #666;
             font-style: italic;
@@ -287,26 +295,23 @@
                 <textarea id="inputText" placeholder="Enter your text here..."></textarea>
             </div>
             
-            <div class="output-section">
+                <div class="output-section">
                 <h2 class="section-title">Zlib Hex Output (Level 9)</h2>
-                <div id="hexOutput" class="hex-output">
-                    <div class="no-data">Enter some text to see the compressed zlib stream as hex...</div>
-                </div>
                 
                 <div id="stats" class="stats" style="display: none;">
                     <h4>Compression Statistics</h4>
                     <div class="stat-item">
                         <span>Original size:</span>
                         <span class="stat-value" id="originalSize">0 bytes</span>
-                    </div>
-                    <div class="stat-item">
                         <span>Compressed size:</span>
                         <span class="stat-value" id="compressedSize">0 bytes</span>
-                    </div>
-                    <div class="stat-item">
                         <span>Compression ratio:</span>
                         <span class="stat-value compression-ratio" id="compressionRatio">0%</span>
                     </div>
+                </div>
+                
+                <div id="hexOutput" class="hex-output">
+                    <div class="no-data">Enter some text to see the compressed zlib stream as hex...</div>
                 </div>
 
                 <div id="deflateBreakdown" class="deflate-breakdown" style="display: none;">
@@ -462,6 +467,7 @@
                         const nlen = reader.readByte() | (reader.readByte() << 8);
                         
                         if ((len ^ nlen) === 0xFFFF) {
+                            const dataStartPos = reader.getPosition();
                             const data = reader.readBytes(len);
                             blockSize = 4 + len; // 4 bytes for len/nlen + data
                             content = `Length: ${len} bytes\nData: ${Array.from(data).map(b => b.toString(16).padStart(2, '0')).join(' ')}`;
@@ -470,11 +476,16 @@
                             // Create items for uncompressed block
                             for (let i = 0; i < data.length; i++) {
                                 const char = String.fromCharCode(data[i]);
+                                const bitStart = dataStartPos.byte * 8 + dataStartPos.bit + (i * 8);
+                                const bitEnd = bitStart + 8; // Each byte is 8 bits
+                                
                                 items.push({
                                     type: 'literal',
                                     value: char,
                                     charCode: data[i],
-                                    position: reader.getPosition()
+                                    position: { byte: dataStartPos.byte + i, bit: 0 },
+                                    bitStart: bitStart,
+                                    bitEnd: bitEnd
                                 });
                             }
                             content += `\n\nItems: ${items.length} literals`;
@@ -593,11 +604,18 @@
                         literalCount++;
                         content += `Literal: ${code} ('${char}')\n`;
                         
+                        // Calculate bit positions for this literal
+                        const currentPos = reader.getPosition();
+                        const bitStart = currentPos.byte * 8 + currentPos.bit - bits;
+                        const bitEnd = currentPos.byte * 8 + currentPos.bit;
+                        
                         items.push({
                             type: 'literal',
                             value: char,
                             charCode: code,
-                            position: reader.getPosition()
+                            position: currentPos,
+                            bitStart: bitStart,
+                            bitEnd: bitEnd
                         });
                     } else if (code === 256) {
                         // End of block
@@ -605,9 +623,15 @@
                         break;
                     } else if (code >= 257 && code <= 285) {
                         // Length code
+                        const lengthStartPos = reader.getPosition();
+                        const lengthBitStart = lengthStartPos.byte * 8 + lengthStartPos.bit - bits;
+                        
                         const length = getLengthFromCode(code, reader);
-                        const distanceCode = readDistanceCodeFixed(reader, fixedDistanceCodes);
-                        const distance = getDistanceFromCode(distanceCode, reader);
+                        const distanceResult = readDistanceCodeFixed(reader, fixedDistanceCodes);
+                        const distance = getDistanceFromCode(distanceResult.symbol, reader);
+                        
+                        const currentPos = reader.getPosition();
+                        const bitEnd = currentPos.byte * 8 + currentPos.bit;
                         
                         // Generate the repeated text for LZ77 reference
                         const repeatedText = generateLZ77Text(length, distance, decompressedData);
@@ -621,7 +645,9 @@
                             length: length,
                             distance: distance,
                             text: repeatedText,
-                            position: reader.getPosition()
+                            position: currentPos,
+                            bitStart: lengthBitStart,
+                            bitEnd: distanceResult.bitEnd
                         });
                     }
                 }
@@ -701,6 +727,7 @@
         function readDistanceCodeFixed(reader, fixedDistanceCodes) {
             let code = 0;
             let bits = 0;
+            const startPos = reader.getPosition();
             
             while (bits < 5 && reader.byteIndex < reader.data.length) {
                 const bit = reader.readBits(1);
@@ -708,7 +735,11 @@
                 bits++;
                 
                 if (fixedDistanceCodes[code] && fixedDistanceCodes[code].length === bits) {
-                    return fixedDistanceCodes[code].symbol;
+                    return {
+                        symbol: fixedDistanceCodes[code].symbol,
+                        bitStart: startPos.byte * 8 + startPos.bit,
+                        bitEnd: reader.getPosition().byte * 8 + reader.getPosition().bit
+                    };
                 }
             }
             
@@ -797,7 +828,8 @@
                 let distanceCount = 0;
                 
                 while (true) {
-                    const symbol = decodeSymbol(reader, literalLengthTree);
+                    const symbolResult = decodeSymbol(reader, literalLengthTree);
+                    const symbol = symbolResult.symbol;
                     
                     if (symbol < 256) {
                         // Literal byte
@@ -810,7 +842,9 @@
                             type: 'literal',
                             value: char,
                             charCode: symbol,
-                            position: reader.getPosition()
+                            position: reader.getPosition(),
+                            bitStart: symbolResult.bitStart,
+                            bitEnd: symbolResult.bitEnd
                         });
                     } else if (symbol === 256) {
                         // End of block
@@ -819,8 +853,10 @@
                     } else if (symbol >= 257 && symbol <= 285) {
                         // Length code
                         const length = getLengthFromCode(symbol, reader);
-                        const distanceSymbol = decodeSymbol(reader, distanceTree);
-                        const distance = getDistanceFromCode(distanceSymbol, reader);
+                        const distanceResult = decodeSymbol(reader, distanceTree);
+                        const distance = getDistanceFromCode(distanceResult.symbol, reader);
+                        
+                        const currentPos = reader.getPosition();
                         
                         // Generate the repeated text for LZ77 reference
                         const repeatedText = generateLZ77Text(length, distance, decompressedData);
@@ -834,7 +870,9 @@
                             length: length,
                             distance: distance,
                             text: repeatedText,
-                            position: reader.getPosition()
+                            position: currentPos,
+                            bitStart: symbolResult.bitStart,
+                            bitEnd: distanceResult.bitEnd
                         });
                     }
                 }
@@ -892,6 +930,7 @@
         function decodeSymbol(reader, tree) {
             let code = 0;
             let bits = 0;
+            const startPos = reader.getPosition();
             
             // Read bits until we find a valid code
             while (bits < 15) { // Maximum code length is 15
@@ -899,7 +938,11 @@
                 bits++;
                 
                 if (tree[code] && tree[code].length === bits) {
-                    return tree[code].symbol;
+                    return {
+                        symbol: tree[code].symbol,
+                        bitStart: startPos.byte * 8 + startPos.bit,
+                        bitEnd: reader.getPosition().byte * 8 + reader.getPosition().bit
+                    };
                 }
             }
             
@@ -949,36 +992,99 @@
             return entry[2];
         }
 
-        function formatHexDump(data) {
+        function generateLZ77Text(length, distance, currentData) {
+            // Generate the repeated text for LZ77 reference
+            let result = '';
+            const startPos = currentData.length - distance;
+            
+            for (let i = 0; i < length; i++) {
+                const sourceIndex = startPos + (i % distance);
+                if (sourceIndex >= 0 && sourceIndex < currentData.length) {
+                    result += currentData[sourceIndex];
+                }
+            }
+            
+            return result;
+        }
+
+        function formatHexDump(data, highlightRanges = []) {
             const bytes = new Uint8Array(data);
             let result = '';
             
             for (let i = 0; i < bytes.length; i += 16) {
-                // Address
-                const address = i.toString(16).padStart(8, '0').toUpperCase();
-                result += address + ': ';
-                
                 // Hex bytes
                 let hexLine = '';
-                let asciiLine = '';
                 
                 for (let j = 0; j < 16; j++) {
                     if (i + j < bytes.length) {
                         const byte = bytes[i + j];
-                        hexLine += byte.toString(16).padStart(2, '0').toUpperCase() + ' ';
-                        asciiLine += (byte >= 32 && byte <= 126) ? String.fromCharCode(byte) : '.';
-                    } else {
-                        hexLine += '   ';
-                        asciiLine += ' ';
-                    }
-                    
-                    // Add extra space every 8 bytes
-                    if (j === 7) {
-                        hexLine += ' ';
+                        const byteIndex = i + j;
+                        const hexStr = byte.toString(16).padStart(2, '0').toUpperCase();
+                        
+                        // Check if this byte should be highlighted and get bit-level info
+                        const highlightInfo = highlightRanges.find(range => 
+                            byteIndex >= range.start && byteIndex < range.end
+                        );
+                        
+                        if (highlightInfo) {
+                            // Check if this is a partial byte highlight
+                            if (byteIndex === highlightInfo.start && byteIndex === highlightInfo.end - 1) {
+                                // Single byte with partial bit highlighting
+                                const startBit = highlightInfo.startBitInByte || 0;
+                                const endBit = highlightInfo.endBitInByte || 7;
+                                const bitCount = endBit - startBit + 1;
+                                const gradientPercent = (bitCount / 8) * 100;
+                                const gradientOffset = (startBit / 8) * 100;
+                                
+                                const gradientStyle = `background: linear-gradient(90deg, 
+                                    transparent ${gradientOffset}%, 
+                                    #2196f3 ${gradientOffset}%, 
+                                    #2196f3 ${gradientOffset + gradientPercent}%, 
+                                    transparent ${gradientOffset + gradientPercent}%); 
+                                    color: #fff; font-weight: bold;`;
+                                
+                                hexLine += `<span style="${gradientStyle}">${hexStr}</span>`;
+                            } else if (byteIndex === highlightInfo.start) {
+                                // Start byte with partial bit highlighting (right side)
+                                const startBit = highlightInfo.startBitInByte || 0;
+                                const gradientPercent = ((8 - startBit) / 8) * 100;
+                                const gradientOffset = (startBit / 8) * 100;
+                                
+                                const gradientStyle = `background: linear-gradient(90deg, 
+                                    transparent ${gradientOffset}%, 
+                                    #2196f3 ${gradientOffset}%, 
+                                    #2196f3 100%); 
+                                    color: #fff; font-weight: bold;`;
+                                
+                                hexLine += `<span style="${gradientStyle}">${hexStr}</span>`;
+                            } else if (byteIndex === highlightInfo.end - 1) {
+                                // End byte with partial bit highlighting (left side)
+                                const endBit = highlightInfo.endBitInByte || 7;
+                                const gradientPercent = ((endBit + 1) / 8) * 100;
+                                
+                                const gradientStyle = `background: linear-gradient(90deg, 
+                                    #2196f3 0%, 
+                                    #2196f3 ${gradientPercent}%, 
+                                    transparent ${gradientPercent}%); 
+                                    color: #fff; font-weight: bold;`;
+                                
+                                hexLine += `<span style="${gradientStyle}">${hexStr}</span>`;
+                            } else {
+                                // Full byte highlight (middle bytes)
+                                hexLine += `<span class="hex-highlight">${hexStr}</span>`;
+                            }
+                        } else {
+                            hexLine += hexStr;
+                        }
+                        
+                        // Add space after each byte (except the last one in the line)
+                        if (j < 15 && i + j + 1 < bytes.length) {
+                            hexLine += ' ';
+                        }
                     }
                 }
                 
-                result += hexLine.padEnd(50) + ' |' + asciiLine + '|\n';
+                result += hexLine + '\n';
             }
             
             return result;
@@ -1011,6 +1117,42 @@
             
             // Update highlighted text
             updateHighlightedTextForItem(item, itemIndex);
+            
+            // Update hex highlighting
+            updateHexHighlighting(itemIndex);
+        }
+
+        function updateHexHighlighting(itemIndex) {
+            if (deflateItems.length === 0) return;
+            
+            // Calculate byte ranges for the current item
+            const item = deflateItems[itemIndex];
+            const highlightRanges = calculateItemByteRanges(item, itemIndex);
+            
+            // Re-render hex dump with highlighting
+            const compressed = fflate.zlibSync(new TextEncoder().encode(currentText), { level: 9, mem: 12 });
+            const hexDump = formatHexDump(compressed, highlightRanges);
+            hexOutput.innerHTML = hexDump;
+        }
+
+        function calculateItemByteRanges(item, itemIndex) {
+            const ranges = [];
+            
+            // Convert bit positions to byte ranges, accounting for zlib header (2 bytes)
+            const startByte = Math.floor(item.bitStart / 8) + 2;
+            const endByte = Math.floor((item.bitEnd - 1) / 8) + 2;
+            
+            ranges.push({
+                start: startByte,
+                end: endByte + 1,
+                type: item.type,
+                bitStart: item.bitStart,
+                bitEnd: item.bitEnd,
+                startBitInByte: item.bitStart % 8,
+                endBitInByte: (item.bitEnd - 1) % 8
+            });
+            
+            return ranges;
         }
 
         function updateHighlightedTextForItem(item, itemIndex) {
@@ -1156,7 +1298,7 @@
                 
                 // Display hex dump
                 const hexDump = formatHexDump(compressed);
-                hexOutput.textContent = hexDump;
+                hexOutput.innerHTML = hexDump;
                 
                 // Parse DEFLATE blocks
                 deflateBlocks = parseDeflateBlocks(compressed);
