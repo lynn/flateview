@@ -264,4 +264,45 @@ describe('DeflateParser Structure Tests', () => {
     expect(Array.from(reconstructedBytes)).toEqual(Array.from(originalBytes))
     expect(new TextDecoder().decode(reconstructedBytes)).toBe('hello')
   })
+
+  it('should correctly parse and reconstruct "abcdeabcd" with LZ77 reference', () => {
+    // Test case that should have an LZ77 reference: "abcdeabcd" -> "abcde" + LZ77(length=4, distance=5)
+    const input = 'abcdeabcd'
+    const compressed = fflate.zlibSync(new TextEncoder().encode(input), { level: 9 as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 })
+    
+    // Verify that fflate can decompress it correctly
+    const decompressed = fflate.unzlibSync(compressed)
+    expect(new TextDecoder().decode(decompressed)).toBe(input)
+    
+    // Parse the DEFLATE structure
+    const blocks = parser.parseDeflateBlocks(compressed)
+    expect(blocks).toBeDefined()
+    expect(blocks.length).toBeGreaterThan(0)
+    
+    // Reconstruct the original data from DEFLATE items
+    let reconstructedBytes = new Uint8Array(0)
+    
+    blocks.forEach(block => {
+      block.items.forEach(item => {
+        if (item.type === 'literal') {
+          // Add literal byte
+          const newBytes = new Uint8Array(reconstructedBytes.length + 1)
+          newBytes.set(reconstructedBytes)
+          newBytes[reconstructedBytes.length] = item.charCode!
+          reconstructedBytes = newBytes
+        } else if (item.type === 'lz77' && item.text) {
+          // Add LZ77 repeated text
+          const newBytes = new Uint8Array(reconstructedBytes.length + item.text.length)
+          newBytes.set(reconstructedBytes)
+          newBytes.set(item.text, reconstructedBytes.length)
+          reconstructedBytes = newBytes
+        }
+      })
+    })
+    
+    // Verify that our reconstruction matches the original
+    const originalBytes = new TextEncoder().encode(input)
+    expect(Array.from(reconstructedBytes)).toEqual(Array.from(originalBytes))
+    expect(new TextDecoder().decode(reconstructedBytes)).toBe(input)
+  })
 })

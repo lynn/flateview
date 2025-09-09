@@ -11,7 +11,6 @@ function App() {
     inputText,
     setInputText,
     deflateItems,
-    deflateBlocks,
     stats,
     hexDump,
     highlightedText,
@@ -53,7 +52,6 @@ function App() {
 
         <DeflateStream
           deflateItems={deflateItems}
-          deflateBlocks={deflateBlocks}
           compressedData={compressedData}
         />
 

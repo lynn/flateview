@@ -456,7 +456,7 @@ export class DeflateParser {
     // Length codes 257-279: 7 bits, codes 0000001-0010111 (MSB-first)
     // 0000001 = 1, 0010111 = 23
     for (let i = 257; i < 280; i++) {
-      codes[i - 257] = { symbol: i, length: 7 };
+      codes[i - 256] = { symbol: i, length: 7 };
     }
     
     // End of block: 7 bits, code 0000000 (MSB-first)
@@ -527,9 +527,15 @@ export class DeflateParser {
     const startPos = currentData.length - distance;
     
     for (let i = 0; i < length; i++) {
-      const sourceIndex = startPos + (i % distance);
+      const sourceIndex = startPos + i;
       if (sourceIndex >= 0 && sourceIndex < currentData.length) {
         result[i] = currentData[sourceIndex];
+      } else {
+        // If we go beyond available data, repeat from the beginning of the reference
+        const repeatIndex = startPos + (i % distance);
+        if (repeatIndex >= 0 && repeatIndex < currentData.length) {
+          result[i] = currentData[repeatIndex];
+        }
       }
     }
     

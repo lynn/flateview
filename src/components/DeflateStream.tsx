@@ -1,15 +1,13 @@
 import React from 'react';
-import type { DeflateItem, DeflateBlock } from '../types';
+import type { DeflateItem } from '../types';
 
 interface DeflateStreamProps {
   deflateItems: DeflateItem[];
-  deflateBlocks: DeflateBlock[];
   compressedData: Uint8Array | null;
 }
 
 export const DeflateStream: React.FC<DeflateStreamProps> = ({
   deflateItems,
-  deflateBlocks,
   compressedData
 }) => {
   if (deflateItems.length === 0 || !compressedData) return null;
