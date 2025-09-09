@@ -108,7 +108,7 @@ export class DeflateParser {
     const startPos = reader.getPosition();
     let content = 'Fixed Huffman codes:\n';
     const items: DeflateItem[] = [];
-    let decompressedData = '';
+    let decompressedData = new Uint8Array(0);
     
     try {
       const fixedLiteralLengthCodes = this.buildFixedLiteralLengthCodes();
@@ -125,7 +125,7 @@ export class DeflateParser {
         
         while (bits < 15) {
           const bit = reader.readBits(1);
-          code = (code << 1) | bit;
+          code = (code << 1) | bit; // Build code MSB-first (as per RFC 3.1.1)
           bits++;
           
           if (fixedLiteralLengthCodes[code] && fixedLiteralLengthCodes[code].length === bits) {
@@ -133,12 +133,17 @@ export class DeflateParser {
           }
         }
         
-        if (code < 256) {
+        const symbol = fixedLiteralLengthCodes[code]?.symbol;
+        
+        if (symbol < 256) {
           // Literal byte
-          const char = String.fromCharCode(code);
-          decompressedData += char;
+          const char = String.fromCharCode(symbol);
+          const newData = new Uint8Array(decompressedData.length + 1);
+          newData.set(decompressedData);
+          newData[decompressedData.length] = symbol;
+          decompressedData = newData;
           literalCount++;
-          content += `Literal: ${code} ('${char}')\n`;
+          content += `Literal: ${symbol} ('${char}')\n`;
           
           const currentPos = reader.getPosition();
           const bitStart = codeStartPos.byte * 8 + codeStartPos.bit;
@@ -147,18 +152,18 @@ export class DeflateParser {
           items.push({
             type: 'literal',
             value: char,
-            charCode: code,
+            charCode: symbol,
             position: currentPos,
             bitStart,
             bitEnd
           });
-        } else if (code === 256) {
+        } else if (symbol === 256) {
           // End of block
           content += 'End of block\n';
           break;
-        } else if (code >= 257 && code <= 285) {
+        } else if (symbol >= 257 && symbol <= 285) {
           // Length code
-          const length = this.getLengthFromCode(code, reader);
+          const length = this.getLengthFromCode(symbol, reader);
           const distanceResult = this.readDistanceCodeFixed(reader, fixedDistanceCodes);
           const distance = this.getDistanceFromCode(distanceResult.symbol, reader);
           
@@ -166,10 +171,13 @@ export class DeflateParser {
           const bitStart = codeStartPos.byte * 8 + codeStartPos.bit;
           
           const repeatedText = this.generateLZ77Text(length, distance, decompressedData);
-          decompressedData += repeatedText;
+          const newData = new Uint8Array(decompressedData.length + repeatedText.length);
+          newData.set(decompressedData);
+          newData.set(repeatedText, decompressedData.length);
+          decompressedData = newData;
           lengthCount++;
           distanceCount++;
-          content += `LZ77: length=${length}, distance=${distance} -> "${repeatedText}"\n`;
+          content += `LZ77: length=${length}, distance=${distance} -> "${new TextDecoder().decode(repeatedText)}"\n`;
           
           items.push({
             type: 'lz77',
@@ -195,7 +203,7 @@ export class DeflateParser {
       size: endPos.byte - startPos.byte,
       position: startPos,
       content,
-      decompressedData,
+      decompressedData: new TextDecoder().decode(decompressedData),
       items
     };
   }
@@ -204,7 +212,7 @@ export class DeflateParser {
     const startPos = reader.getPosition();
     let content = 'Dynamic Huffman codes:\n';
     const items: DeflateItem[] = [];
-    let decompressedData = '';
+    let decompressedData = new Uint8Array(0);
     
     try {
       // Read header
@@ -301,7 +309,10 @@ export class DeflateParser {
         if (symbol < 256) {
           // Literal byte
           const char = String.fromCharCode(symbol);
-          decompressedData += char;
+          const newData = new Uint8Array(decompressedData.length + 1);
+          newData.set(decompressedData);
+          newData[decompressedData.length] = symbol;
+          decompressedData = newData;
           literalCount++;
           content += `Literal: ${symbol} ('${char}')\n`;
           
@@ -327,10 +338,13 @@ export class DeflateParser {
           
           // Generate the repeated text for LZ77 reference
           const repeatedText = this.generateLZ77Text(length, distance, decompressedData);
-          decompressedData += repeatedText;
+          const newData = new Uint8Array(decompressedData.length + repeatedText.length);
+          newData.set(decompressedData);
+          newData.set(repeatedText, decompressedData.length);
+          decompressedData = newData;
           lengthCount++;
           distanceCount++;
-          content += `LZ77: length=${length}, distance=${distance} -> "${repeatedText}"\n`;
+          content += `LZ77: length=${length}, distance=${distance} -> "${new TextDecoder().decode(repeatedText)}"\n`;
           
           items.push({
             type: 'lz77',
@@ -356,7 +370,7 @@ export class DeflateParser {
       size: endPos.byte - startPos.byte,
       position: startPos,
       content,
-      decompressedData,
+      decompressedData: new TextDecoder().decode(decompressedData),
       items
     };
   }
@@ -409,7 +423,7 @@ export class DeflateParser {
     // Read bits until we find a valid code
     while (bits < 15) {
       const bit = reader.readBits(1);
-      code = (code << 1) | bit; // Build code MSB-first
+      code = (code << 1) | bit; // Build code MSB-first (as per RFC 3.1.1)
       bits++;
       
       if (tree[code] && tree[code].length === bits) {
@@ -427,25 +441,29 @@ export class DeflateParser {
   private buildFixedLiteralLengthCodes(): Record<number, HuffmanTreeEntry> {
     const codes: Record<number, HuffmanTreeEntry> = {};
     
-    // Literals 0-143: 8 bits, codes 00110000-10111111
+    // Literals 0-143: 8 bits, codes 00110000-10111111 (MSB-first)
+    // 00110000 = 0x30, 10111111 = 0xBF
     for (let i = 0; i < 144; i++) {
       codes[0x30 + i] = { symbol: i, length: 8 };
     }
     
-    // Literals 144-255: 9 bits, codes 110010000-111111111
+    // Literals 144-255: 9 bits, codes 110010000-111111111 (MSB-first)
+    // 110010000 = 0x190, 111111111 = 0x1FF
     for (let i = 144; i < 256; i++) {
       codes[0x190 + i - 144] = { symbol: i, length: 9 };
     }
     
-    // End of block: 7 bits, code 0000000
-    codes[0] = { symbol: 256, length: 7 };
-    
-    // Length codes 257-279: 7 bits, codes 0000001-0010111
+    // Length codes 257-279: 7 bits, codes 0000001-0010111 (MSB-first)
+    // 0000001 = 1, 0010111 = 23
     for (let i = 257; i < 280; i++) {
       codes[i - 257] = { symbol: i, length: 7 };
     }
     
-    // Length codes 280-285: 8 bits, codes 11000000-11000101
+    // End of block: 7 bits, code 0000000 (MSB-first)
+    codes[0] = { symbol: 256, length: 7 };
+    
+    // Length codes 280-285: 8 bits, codes 11000000-11000101 (MSB-first)
+    // 11000000 = 0xC0, 11000101 = 0xC5
     for (let i = 280; i < 286; i++) {
       codes[0xC0 + i - 280] = { symbol: i, length: 8 };
     }
@@ -456,7 +474,7 @@ export class DeflateParser {
   private buildFixedDistanceCodes(): Record<number, HuffmanTreeEntry> {
     const codes: Record<number, HuffmanTreeEntry> = {};
     
-    // Distance codes 0-31: 5 bits, codes 00000-11111
+    // Distance codes 0-31: 5 bits, codes 00000-11111 (MSB-first)
     for (let i = 0; i < 32; i++) {
       codes[i] = { symbol: i, length: 5 };
     }
@@ -471,7 +489,7 @@ export class DeflateParser {
     
     while (bits < 5) {
       const bit = reader.readBits(1);
-      code = (code << 1) | bit; // Build code with MSB first
+      code = (code << 1) | bit; // Build code MSB-first (as per RFC 3.1.1)
       bits++;
       
       if (fixedDistanceCodes[code] && fixedDistanceCodes[code].length === bits) {
@@ -504,14 +522,14 @@ export class DeflateParser {
     return entry.distance;
   }
 
-  private generateLZ77Text(length: number, distance: number, currentData: string): string {
-    let result = '';
+  private generateLZ77Text(length: number, distance: number, currentData: Uint8Array): Uint8Array {
+    const result = new Uint8Array(length);
     const startPos = currentData.length - distance;
     
     for (let i = 0; i < length; i++) {
       const sourceIndex = startPos + (i % distance);
       if (sourceIndex >= 0 && sourceIndex < currentData.length) {
-        result += currentData[sourceIndex];
+        result[i] = currentData[sourceIndex];
       }
     }
     

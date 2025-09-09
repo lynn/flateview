@@ -11,7 +11,7 @@ export interface DeflateItem {
   charCode?: number;
   length?: number;
   distance?: number;
-  text?: string;
+  text?: Uint8Array;
   position: BitPosition;
   bitStart: number;
   bitEnd: number;
