@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlateView - DEFLATE Compression Visualizer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; background-color: #f8f9fa; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        h1 { text-align: center; margin-bottom: 30px; color: #2c3e50; font-size: 2.5rem; font-weight: 300; }
+        .input-section { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #555; }
+        textarea { width: 100%; min-height: 120px; padding: 12px; border: 2px solid #e9ecef; border-radius: 8px; font-family: monospace; font-size: 18px; resize: vertical; transition: border-color 0.3s ease; }
+        textarea:focus { outline: none; border-color: #007bff; }
+        #stats { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; display: none; }
+        .stat-item { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 15px; }
+        .stat-label { font-weight: 600; color: #666; }
+        .stat-value { font-weight: bold; color: #2c3e50; }
+        .compression-ratio.negative { color: #dc3545; }
+        #hexOutput { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 16px; line-height: 1.4; height: 300px; overflow-y: auto; white-space: pre-wrap; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .deflate-breakdown { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .block-navigation { margin-bottom: 20px; }
+        .block-slider { width: 100%; margin: 10px 0; }
+        .block-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .block-info { font-weight: bold; color: #2c3e50; }
+        .block-visualization { background: #f8f9fa; padding: 15px; border-radius: 4px; font-family: monospace; font-size: 14px; white-space: pre; border-left: 4px solid #007bff; }
+        .highlighted-text { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .text-display { font-family: monospace; font-size: 16px; line-height: 1.6; padding: 15px; background: #f8f9fa; border-radius: 4px; border: 1px solid #e9ecef; }
+        .text-highlight { background: #ffeb3b; color: #000; font-weight: bold; border-radius: 2px; padding: 1px 2px; }
+        .hex-highlight { background: #2196f3; color: #fff; font-weight: bold; }
+        .hex-dim { color: #666; }
+        .no-data { color: #666; font-style: italic; text-align: center; padding: 40px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>FlateView</h1>
+        <p style="text-align: center; color: #666; margin-bottom: 30px;">Interactive DEFLATE Compression Visualizer</p>
+
+        <div class="input-section">
+            <label for="inputText">Enter text to compress and visualize:</label>
+            <textarea id="inputText" placeholder="Type or paste your text here...">for x in range(10): print(x); print(x); print(x)</textarea>
+        </div>
+
+        <div id="stats">
+            <div class="stat-item">
+                <div><span class="stat-label">Original size:</span> <span class="stat-value" id="originalSize">0 bytes</span></div>
+                <div><span class="stat-label">Compressed size:</span> <span class="stat-value" id="compressedSize">0 bytes</span></div>
+                <div><span class="stat-label">Compression ratio:</span> <span class="stat-value" id="compressionRatio">0%</span></div>
+            </div>
+        </div>
+
+        <div id="hexOutput"><div class="no-data">Enter some text to see the compressed output</div></div>
+
+        <div id="deflateBreakdown" class="deflate-breakdown" style="display: none;">
+            <h3>DEFLATE Breakdown</h3>
+            <div class="block-navigation">
+                <input type="range" id="blockSlider" class="block-slider" min="0" max="0" value="0">
+                <div id="blockInfo">Item 0 of 0</div>
+            </div>
+            <div class="block-details">
+                <div>
+                    <div class="block-info" id="blockType">Block 0 (Unknown)</div>
+                    <div class="block-info" id="blockSize">0 bytes</div>
+                    <div class="block-info" id="blockPosition">Position 0.0</div>
+                </div>
+            </div>
+            <div class="block-visualization" id="blockVisualization">No data</div>
+        </div>
+
+        <div id="highlightedText" class="highlighted-text" style="display: none;">
+            <h3>Decompressed Text</h3>
+            <div class="text-display" id="textDisplay">No data</div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/fflate@0.7.4/umd/index.min.js"></script>
+    <script type="module" src="dist/index.js"></script>
+</body>
+</html>
