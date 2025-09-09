@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text to Zlib Hex Compressor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            min-height: 500px;
+        }
+
+        .input-section, .output-section {
+            padding: 30px;
+        }
+
+        .input-section {
+            background: #f8f9fa;
+            border-right: 1px solid #e9ecef;
+        }
+
+        .output-section {
+            background: #ffffff;
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .input-section .section-title {
+            color: #4facfe;
+        }
+
+        .output-section .section-title {
+            color: #28a745;
+        }
+
+        textarea {
+            width: 100%;
+            height: 300px;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+            transition: border-color 0.3s ease;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #4facfe;
+            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
+        }
+
+        .hex-output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .stats {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e3f2fd;
+            border-radius: 8px;
+            border-left: 4px solid #2196f3;
+        }
+
+        .stats h4 {
+            color: #1976d2;
+            margin-bottom: 10px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .stat-value {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .compression-ratio {
+            color: #4caf50;
+        }
+
+        .compression-ratio.negative {
+            color: #dc3545;
+        }
+
+        .deflate-breakdown {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #ff9800;
+        }
+
+        .deflate-breakdown h4 {
+            color: #e65100;
+            margin-bottom: 15px;
+        }
+
+        .block-navigation {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .block-slider {
+            flex: 1;
+            height: 6px;
+            background: #ddd;
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .block-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #ff9800;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .block-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #ff9800;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        .block-details {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 15px;
+        }
+
+        .block-info {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .block-info > div {
+            font-size: 14px;
+            color: #333;
+        }
+
+        .block-visualization {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre;
+        }
+
+        .highlighted-text {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e8f5e8;
+            border-radius: 8px;
+            border-left: 4px solid #4caf50;
+        }
+
+        .highlighted-text h4 {
+            color: #2e7d32;
+            margin-bottom: 15px;
+        }
+
+        .text-display {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .text-highlight {
+            background: #ffeb3b;
+            padding: 2px 4px;
+            border-radius: 2px;
+            font-weight: bold;
+        }
+
+        .no-data {
+            color: #666;
+            font-style: italic;
+            text-align: center;
+            padding: 50px 20px;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .input-section {
+                border-right: none;
+                border-bottom: 1px solid #e9ecef;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-content">
+            <div class="input-section">
+                <h2 class="section-title">Input Text</h2>
+                <textarea id="inputText" placeholder="Enter your text here..."></textarea>
+            </div>
+            
+            <div class="output-section">
+                <h2 class="section-title">Zlib Hex Output (Level 9)</h2>
+                <div id="hexOutput" class="hex-output">
+                    <div class="no-data">Enter some text to see the compressed zlib stream as hex...</div>
+                </div>
+                
+                <div id="stats" class="stats" style="display: none;">
+                    <h4>Compression Statistics</h4>
+                    <div class="stat-item">
+                        <span>Original size:</span>
+                        <span class="stat-value" id="originalSize">0 bytes</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Compressed size:</span>
+                        <span class="stat-value" id="compressedSize">0 bytes</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Compression ratio:</span>
+                        <span class="stat-value compression-ratio" id="compressionRatio">0%</span>
+                    </div>
+                </div>
+
+                <div id="deflateBreakdown" class="deflate-breakdown" style="display: none;">
+                    <h4>DEFLATE Stream Breakdown</h4>
+                    <div class="block-navigation">
+                        <label for="blockSlider">Block:</label>
+                        <input type="range" id="blockSlider" min="0" max="0" value="0" class="block-slider">
+                        <span id="blockInfo">Block 0 of 0</span>
+                    </div>
+                    <div id="blockDetails" class="block-details">
+                        <div class="block-info">
+                            <div class="block-type">Type: <span id="blockType">-</span></div>
+                            <div class="block-size">Size: <span id="blockSize">-</span></div>
+                            <div class="block-position">Position: <span id="blockPosition">-</span></div>
+                        </div>
+                        <div class="block-visualization" id="blockVisualization"></div>
+                    </div>
+                </div>
+
+                <div id="highlightedText" class="highlighted-text" style="display: none;">
+                    <h4>Corresponding Input Text</h4>
+                    <div id="textDisplay" class="text-display"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="./fflate.js"></script>
+
+    <!-- fflate CDN -->
+    <script>
+
+
+        const inputText = document.getElementById('inputText');
+        const hexOutput = document.getElementById('hexOutput');
+        const stats = document.getElementById('stats');
+        const originalSize = document.getElementById('originalSize');
+        const compressedSize = document.getElementById('compressedSize');
+        const compressionRatio = document.getElementById('compressionRatio');
+        const deflateBreakdown = document.getElementById('deflateBreakdown');
+        const blockSlider = document.getElementById('blockSlider');
+        const blockInfo = document.getElementById('blockInfo');
+        const blockType = document.getElementById('blockType');
+        const blockSize = document.getElementById('blockSize');
+        const blockPosition = document.getElementById('blockPosition');
+        const blockVisualization = document.getElementById('blockVisualization');
+        const highlightedText = document.getElementById('highlightedText');
+        const textDisplay = document.getElementById('textDisplay');
+
+        let deflateBlocks = [];
+        let currentText = '';
+
+        // Bit array utility for easier DEFLATE parsing
+        class BitReader {
+            constructor(data) {
+                this.data = new Uint8Array(data);
+                this.byteIndex = 0;
+                this.bitIndex = 0;
+            }
+
+            readBits(count) {
+                let result = 0;
+                for (let i = 0; i < count; i++) {
+                    if (this.byteIndex >= this.data.length) {
+                        throw new Error('Unexpected end of data');
+                    }
+                    
+                    const bit = (this.data[this.byteIndex] >> this.bitIndex) & 1;
+                    result |= bit << i;
+                    
+                    this.bitIndex++;
+                    if (this.bitIndex === 8) {
+                        this.bitIndex = 0;
+                        this.byteIndex++;
+                    }
+                }
+                return result;
+            }
+
+            readByte() {
+                if (this.bitIndex !== 0) {
+                    this.bitIndex = 0;
+                    this.byteIndex++;
+                }
+                if (this.byteIndex >= this.data.length) {
+                    throw new Error('Unexpected end of data');
+                }
+                return this.data[this.byteIndex++];
+            }
+
+            readBytes(count) {
+                if (this.bitIndex !== 0) {
+                    this.bitIndex = 0;
+                    this.byteIndex++;
+                }
+                const result = this.data.slice(this.byteIndex, this.byteIndex + count);
+                this.byteIndex += count;
+                return result;
+            }
+
+            alignToByte() {
+                if (this.bitIndex !== 0) {
+                    this.bitIndex = 0;
+                    this.byteIndex++;
+                }
+            }
+
+            getPosition() {
+                return { byte: this.byteIndex, bit: this.bitIndex };
+            }
+        }
+
+        // DEFLATE parser following RFC 1951
+        function parseDeflateBlocks(zlibData) {
+            const blocks = [];
+            const data = new Uint8Array(zlibData);
+            
+            console.log('Parsing DEFLATE blocks. Zlib data length:', zlibData.length);
+            console.log('Zlib data:', Array.from(data).map(b => b.toString(16).padStart(2, '0')).join(' '));
+            
+            // Skip zlib header (2 bytes) and checksum (4 bytes at end)
+            const deflateData = data.slice(2, data.length - 4);
+            console.log('DEFLATE data length:', deflateData.length);
+            console.log('DEFLATE data:', Array.from(deflateData).map(b => b.toString(16).padStart(2, '0')).join(' '));
+            
+            const reader = new BitReader(deflateData);
+            let blockIndex = 0;
+            
+            try {
+                while (true) {
+                    const blockStart = reader.getPosition();
+                    console.log(`Parsing block ${blockIndex} at position:`, blockStart);
+                    
+                    // Read block header (3 bits)
+                    const bfinal = reader.readBits(1);
+                    const btype = reader.readBits(2);
+                    
+                    console.log(`Block ${blockIndex}: BFINAL=${bfinal}, BTYPE=${btype}`);
+                    
+                    let blockType = '';
+                    let blockSize = 0;
+                    let content = '';
+                    let decompressedData = '';
+                    
+                    if (btype === 0) {
+                        // Uncompressed block (BTYPE=00)
+                        blockType = 'Uncompressed';
+                        reader.alignToByte(); // Skip to byte boundary
+                        
+                        const len = reader.readByte() | (reader.readByte() << 8);
+                        const nlen = reader.readByte() | (reader.readByte() << 8);
+                        
+                        if ((len ^ nlen) === 0xFFFF) {
+                            const data = reader.readBytes(len);
+                            blockSize = 4 + len; // 4 bytes for len/nlen + data
+                            content = `Length: ${len} bytes\nData: ${Array.from(data).map(b => b.toString(16).padStart(2, '0')).join(' ')}`;
+                            decompressedData = new TextDecoder().decode(data);
+                        } else {
+                            blockSize = 4;
+                            content = 'Invalid uncompressed block (len != ~nlen)';
+                        }
+                    } else if (btype === 1) {
+                        // Fixed Huffman block (BTYPE=01)
+                        blockType = 'Fixed Huffman';
+                        const result = parseFixedHuffmanBlock(reader);
+                        blockSize = result.size;
+                        content = result.content;
+                        decompressedData = result.decompressedData;
+                    } else if (btype === 2) {
+                        // Dynamic Huffman block (BTYPE=10)
+                        blockType = 'Dynamic Huffman';
+                        const result = parseDynamicHuffmanBlock(reader);
+                        blockSize = result.size;
+                        content = result.content;
+                        decompressedData = result.decompressedData;
+                    } else {
+                        // Reserved (BTYPE=11)
+                        blockType = 'Reserved (Error)';
+                        blockSize = 0;
+                        content = 'Invalid block type (reserved)';
+                    }
+                    
+                    const blockEnd = reader.getPosition();
+                    
+                    blocks.push({
+                        index: blockIndex,
+                        type: blockType,
+                        size: blockSize,
+                        start: blockStart,
+                        end: blockEnd,
+                        content: content,
+                        decompressedData: decompressedData,
+                        isFinal: bfinal === 1
+                    });
+                    
+                    blockIndex++;
+                    
+                    if (bfinal === 1) break;
+                }
+            } catch (error) {
+                console.error('Error parsing DEFLATE blocks:', error);
+                // Add error block if parsing fails
+                blocks.push({
+                    index: blockIndex,
+                    type: 'Parse Error',
+                    size: 0,
+                    start: reader.getPosition(),
+                    end: reader.getPosition(),
+                    content: `Error: ${error.message}`,
+                    decompressedData: '',
+                    isFinal: true
+                });
+            }
+            
+            console.log('Parsing complete. Total blocks:', blocks.length);
+            console.log('Final blocks:', blocks);
+            return blocks;
+        }
+
+        // Parse fixed Huffman block (BTYPE=01)
+        function parseFixedHuffmanBlock(reader) {
+            const startPos = reader.getPosition();
+            let content = 'Fixed Huffman codes:\n';
+            content += 'Literal/Length codes: 0-143 (8 bits), 144-255 (9 bits), 256-279 (7 bits), 280-287 (8 bits)\n';
+            content += 'Distance codes: 0-31 (5 bits)\n\n';
+            
+            let decompressedData = '';
+            let literalCount = 0;
+            let lengthCount = 0;
+            let distanceCount = 0;
+            
+            // Build the fixed Huffman code table according to RFC 1951
+            const fixedLiteralLengthCodes = buildFixedLiteralLengthCodes();
+            const fixedDistanceCodes = buildFixedDistanceCodes();
+            
+            try {
+                while (reader.byteIndex < reader.data.length) {
+                    // Read literal/length code using fixed Huffman table
+                    let code = 0;
+                    let bits = 0;
+                    let found = false;
+                    
+                    // Read bits one by one until we find a valid code
+                    // Huffman codes are packed with MSB first, so we need to reverse the bit order
+                    while (bits < 9 && reader.byteIndex < reader.data.length && !found) {
+                        const bit = reader.readBits(1);
+                        code = (code << 1) | bit; // Build code with MSB first
+                        bits++;
+                        
+                        // Check against fixed code table
+                        if (fixedLiteralLengthCodes[code] && fixedLiteralLengthCodes[code].length === bits) {
+                            code = fixedLiteralLengthCodes[code].symbol;
+                            found = true;
+                        }
+                    }
+                    
+                    if (!found) {
+                        content += `Parse error: Could not decode code at position ${reader.getPosition().byte}.${reader.getPosition().bit}\n`;
+                        break;
+                    }
+                    
+                    if (code < 256) {
+                        // Literal byte
+                        decompressedData += String.fromCharCode(code);
+                        literalCount++;
+                        content += `Literal: ${code} ('${String.fromCharCode(code)}')\n`;
+                    } else if (code === 256) {
+                        // End of block
+                        content += 'End of block\n';
+                        break;
+                    } else if (code >= 257 && code <= 285) {
+                        // Length code
+                        const length = getLengthFromCode(code, reader);
+                        const distanceCode = readDistanceCodeFixed(reader, fixedDistanceCodes);
+                        const distance = getDistanceFromCode(distanceCode, reader);
+                        
+                        decompressedData += `[LZ77: len=${length}, dist=${distance}]`;
+                        lengthCount++;
+                        distanceCount++;
+                        content += `LZ77: length=${length}, distance=${distance}\n`;
+                    }
+                }
+            } catch (error) {
+                content += `Parse error: ${error.message}\n`;
+            }
+            
+            const endPos = reader.getPosition();
+            content += `\nSummary: ${literalCount} literals, ${lengthCount} length codes, ${distanceCount} distance codes`;
+            
+            return {
+                size: endPos.byte - startPos.byte,
+                content: content,
+                decompressedData: decompressedData
+            };
+        }
+
+        // Build fixed literal/length codes according to RFC 1951
+        function buildFixedLiteralLengthCodes() {
+            const codes = {};
+            
+            // 0-143: 8 bits, codes 00110000 through 10111111
+            for (let i = 0; i <= 143; i++) {
+                const code = 0x30 + i; // 00110000 + i
+                codes[code] = { symbol: i, length: 8 };
+            }
+            
+            // 144-255: 9 bits, codes 110010000 through 111111111
+            for (let i = 144; i <= 255; i++) {
+                const code = 0x190 + (i - 144); // 110010000 + (i - 144)
+                codes[code] = { symbol: i, length: 9 };
+            }
+            
+            // 256-279: 7 bits, codes 0000000 through 0010111
+            for (let i = 256; i <= 279; i++) {
+                const code = i - 256; // 0 through 23
+                codes[code] = { symbol: i, length: 7 };
+            }
+            
+            // 280-287: 8 bits, codes 11000000 through 11000111
+            for (let i = 280; i <= 287; i++) {
+                const code = 0xC0 + (i - 280); // 11000000 + (i - 280)
+                codes[code] = { symbol: i, length: 8 };
+            }
+            
+            return codes;
+        }
+
+        // Build fixed distance codes according to RFC 1951
+        function buildFixedDistanceCodes() {
+            const codes = {};
+            
+            // 0-31: 5 bits, codes 00000 through 11111
+            for (let i = 0; i <= 31; i++) {
+                codes[i] = { symbol: i, length: 5 };
+            }
+            
+            return codes;
+        }
+
+        // Read distance code using fixed codes
+        function readDistanceCodeFixed(reader, fixedDistanceCodes) {
+            let code = 0;
+            let bits = 0;
+            
+            while (bits < 5 && reader.byteIndex < reader.data.length) {
+                const bit = reader.readBits(1);
+                code = (code << 1) | bit; // Build code with MSB first
+                bits++;
+                
+                if (fixedDistanceCodes[code] && fixedDistanceCodes[code].length === bits) {
+                    return fixedDistanceCodes[code].symbol;
+                }
+            }
+            
+            throw new Error('Invalid distance code');
+        }
+
+        // Parse dynamic Huffman block (BTYPE=10)
+        function parseDynamicHuffmanBlock(reader) {
+            const startPos = reader.getPosition();
+            let content = 'Dynamic Huffman codes:\n';
+            let decompressedData = '';
+            
+            try {
+                // Read header
+                const hlit = reader.readBits(5) + 257;  // 257-286
+                const hdist = reader.readBits(5) + 1;   // 1-32
+                const hclen = reader.readBits(4) + 4;   // 4-19
+                
+                content += `HLIT: ${hlit} (literal/length codes)\n`;
+                content += `HDIST: ${hdist} (distance codes)\n`;
+                content += `HCLEN: ${hclen} (code length codes)\n\n`;
+                
+                // Read code length codes
+                const codeLengthOrder = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
+                const codeLengths = new Array(19).fill(0);
+                
+                for (let i = 0; i < hclen; i++) {
+                    codeLengths[codeLengthOrder[i]] = reader.readBits(3);
+                }
+                
+                content += 'Code length codes: ' + codeLengths.slice(0, hclen).join(', ') + '\n';
+                
+                // Build Huffman tree for code lengths
+                const codeLengthTree = buildHuffmanTree(codeLengths, 19);
+                content += `\nCode length tree built\n`;
+                
+                // Decode literal/length and distance code lengths
+                const allCodeLengths = [];
+                let totalCodes = hlit + hdist;
+                
+                while (allCodeLengths.length < totalCodes) {
+                    const symbol = decodeSymbol(reader, codeLengthTree);
+                    
+                    if (symbol < 16) {
+                        // Direct code length
+                        allCodeLengths.push(symbol);
+                    } else if (symbol === 16) {
+                        // Copy previous code length 3-6 times
+                        const repeat = reader.readBits(2) + 3;
+                        const lastLength = allCodeLengths[allCodeLengths.length - 1];
+                        for (let i = 0; i < repeat; i++) {
+                            allCodeLengths.push(lastLength);
+                        }
+                    } else if (symbol === 17) {
+                        // Repeat code length 0 for 3-10 times
+                        const repeat = reader.readBits(3) + 3;
+                        for (let i = 0; i < repeat; i++) {
+                            allCodeLengths.push(0);
+                        }
+                    } else if (symbol === 18) {
+                        // Repeat code length 0 for 11-138 times
+                        const repeat = reader.readBits(7) + 11;
+                        for (let i = 0; i < repeat; i++) {
+                            allCodeLengths.push(0);
+                        }
+                    }
+                }
+                
+                // Split into literal/length and distance code lengths
+                const literalLengths = allCodeLengths.slice(0, hlit);
+                const distanceLengths = allCodeLengths.slice(hlit, hlit + hdist);
+                
+                content += `Literal/length code lengths: ${literalLengths.slice(0, 20).join(', ')}${literalLengths.length > 20 ? '...' : ''}\n`;
+                content += `Distance code lengths: ${distanceLengths.join(', ')}\n\n`;
+                
+                // Build Huffman trees
+                const literalLengthTree = buildHuffmanTree(literalLengths, hlit);
+                const distanceTree = buildHuffmanTree(distanceLengths, hdist);
+                
+                content += `Huffman trees built\n\n`;
+                
+                // Decode the actual compressed data
+                let literalCount = 0;
+                let lengthCount = 0;
+                let distanceCount = 0;
+                
+                while (true) {
+                    const symbol = decodeSymbol(reader, literalLengthTree);
+                    
+                    if (symbol < 256) {
+                        // Literal byte
+                        decompressedData += String.fromCharCode(symbol);
+                        literalCount++;
+                        content += `Literal: ${symbol} ('${String.fromCharCode(symbol)}')\n`;
+                    } else if (symbol === 256) {
+                        // End of block
+                        content += 'End of block\n';
+                        break;
+                    } else if (symbol >= 257 && symbol <= 285) {
+                        // Length code
+                        const length = getLengthFromCode(symbol, reader);
+                        const distanceSymbol = decodeSymbol(reader, distanceTree);
+                        const distance = getDistanceFromCode(distanceSymbol, reader);
+                        
+                        decompressedData += `[LZ77: len=${length}, dist=${distance}]`;
+                        lengthCount++;
+                        distanceCount++;
+                        content += `LZ77: length=${length}, distance=${distance}\n`;
+                    }
+                }
+                
+                content += `\nSummary: ${literalCount} literals, ${lengthCount} length codes, ${distanceCount} distance codes`;
+                
+            } catch (error) {
+                content += `Parse error: ${error.message}\n`;
+            }
+            
+            const endPos = reader.getPosition();
+            
+            return {
+                size: endPos.byte - startPos.byte,
+                content: content,
+                decompressedData: decompressedData
+            };
+        }
+
+        // Build Huffman tree from code lengths
+        function buildHuffmanTree(codeLengths, maxSymbol) {
+            // Count codes of each length
+            const blCount = new Array(16).fill(0);
+            for (let i = 0; i < maxSymbol; i++) {
+                if (codeLengths[i] > 0) {
+                    blCount[codeLengths[i]]++;
+                }
+            }
+            
+            // Find minimum code for each length
+            const nextCode = new Array(16).fill(0);
+            let code = 0;
+            blCount[0] = 0;
+            
+            for (let bits = 1; bits <= 15; bits++) {
+                code = (code + blCount[bits - 1]) << 1;
+                nextCode[bits] = code;
+            }
+            
+            // Assign codes
+            const tree = {};
+            for (let i = 0; i < maxSymbol; i++) {
+                const len = codeLengths[i];
+                if (len !== 0) {
+                    tree[nextCode[len]] = { symbol: i, length: len };
+                    nextCode[len]++;
+                }
+            }
+            
+            return tree;
+        }
+
+        // Decode a symbol using a Huffman tree
+        function decodeSymbol(reader, tree) {
+            let code = 0;
+            let bits = 0;
+            
+            // Read bits until we find a valid code
+            while (bits < 15) { // Maximum code length is 15
+                code |= reader.readBits(1) << bits;
+                bits++;
+                
+                if (tree[code] && tree[code].length === bits) {
+                    return tree[code].symbol;
+                }
+            }
+            
+            throw new Error('Invalid Huffman code');
+        }
+
+        // Helper functions for LZ77 decoding
+        function getLengthFromCode(code, reader) {
+            const lengthTable = [
+                [257, 0, 3], [258, 0, 4], [259, 0, 5], [260, 0, 6], [261, 0, 7],
+                [262, 0, 8], [263, 0, 9], [264, 0, 10], [265, 1, 11], [266, 1, 13],
+                [267, 1, 15], [268, 1, 17], [269, 2, 19], [270, 2, 23], [271, 2, 27],
+                [272, 2, 31], [273, 3, 35], [274, 3, 43], [275, 3, 51], [276, 3, 59],
+                [277, 4, 67], [278, 4, 83], [279, 4, 99], [280, 4, 115], [281, 5, 131],
+                [282, 5, 163], [283, 5, 195], [284, 5, 227], [285, 0, 258]
+            ];
+            
+            const entry = lengthTable[code - 257];
+            if (entry[1] > 0) {
+                const extraBits = reader.readBits(entry[1]);
+                return entry[2] + extraBits;
+            }
+            return entry[2];
+        }
+
+        function readDistanceCode(reader) {
+            // Fixed distance codes are 5 bits
+            return reader.readBits(5);
+        }
+
+        function getDistanceFromCode(code, reader) {
+            const distanceTable = [
+                [0, 0, 1], [1, 0, 2], [2, 0, 3], [3, 0, 4], [4, 1, 5],
+                [5, 1, 7], [6, 2, 9], [7, 2, 13], [8, 3, 17], [9, 3, 25],
+                [10, 4, 33], [11, 4, 49], [12, 5, 65], [13, 5, 97], [14, 6, 129],
+                [15, 6, 193], [16, 7, 257], [17, 7, 385], [18, 8, 513], [19, 8, 769],
+                [20, 9, 1025], [21, 9, 1537], [22, 10, 2049], [23, 10, 3073],
+                [24, 11, 4097], [25, 11, 6145], [26, 12, 8193], [27, 12, 12289],
+                [28, 13, 16385], [29, 13, 24577]
+            ];
+            
+            const entry = distanceTable[code];
+            if (entry[1] > 0) {
+                const extraBits = reader.readBits(entry[1]);
+                return entry[2] + extraBits;
+            }
+            return entry[2];
+        }
+
+        function formatHexDump(data) {
+            const bytes = new Uint8Array(data);
+            let result = '';
+            
+            for (let i = 0; i < bytes.length; i += 16) {
+                // Address
+                const address = i.toString(16).padStart(8, '0').toUpperCase();
+                result += address + ': ';
+                
+                // Hex bytes
+                let hexLine = '';
+                let asciiLine = '';
+                
+                for (let j = 0; j < 16; j++) {
+                    if (i + j < bytes.length) {
+                        const byte = bytes[i + j];
+                        hexLine += byte.toString(16).padStart(2, '0').toUpperCase() + ' ';
+                        asciiLine += (byte >= 32 && byte <= 126) ? String.fromCharCode(byte) : '.';
+                    } else {
+                        hexLine += '   ';
+                        asciiLine += ' ';
+                    }
+                    
+                    // Add extra space every 8 bytes
+                    if (j === 7) {
+                        hexLine += ' ';
+                    }
+                }
+                
+                result += hexLine.padEnd(50) + ' |' + asciiLine + '|\n';
+            }
+            
+            return result;
+        }
+
+        function updateBlockDisplay(blockIndex) {
+            if (deflateBlocks.length === 0) return;
+            
+            const block = deflateBlocks[blockIndex];
+            blockType.textContent = block.type;
+            blockSize.textContent = block.size + ' bytes';
+            blockPosition.textContent = `Byte ${block.start.byte}.${block.start.bit} - ${block.end.byte}.${block.end.bit}`;
+            
+            // Create block visualization
+            let visualization = `Block ${block.index} (${block.type})\n`;
+            visualization += `Size: ${block.size} bytes\n`;
+            visualization += `Position: Byte ${block.start.byte}.${block.start.bit} - ${block.end.byte}.${block.end.bit}\n`;
+            visualization += `Final: ${block.isFinal ? 'Yes' : 'No'}\n\n`;
+            visualization += block.content;
+            
+            blockVisualization.textContent = visualization;
+            
+            // Update highlighted text with actual decompressed data
+            updateHighlightedText(block);
+        }
+
+        function updateHighlightedText(block) {
+            if (!currentText) return;
+            
+            // Show the decompressed data from this block
+            let highlightedText = '';
+            
+            if (block.decompressedData) {
+                // Try to map decompressed data to original text
+                const decompressed = block.decompressedData;
+                
+                if (decompressed.includes('[LZ77:') || decompressed.includes('[Dynamic Huffman')) {
+                    // For compressed blocks, show a representation
+                    highlightedText = `<span class="text-highlight">${decompressed}</span>`;
+                } else if (decompressed.length > 0) {
+                    // For uncompressed blocks, try to find the text in the original
+                    const textIndex = currentText.indexOf(decompressed);
+                    if (textIndex !== -1) {
+                        const before = currentText.substring(0, textIndex);
+                        const after = currentText.substring(textIndex + decompressed.length);
+                        highlightedText = before + `<span class="text-highlight">${decompressed}</span>` + after;
+                    } else {
+                        highlightedText = `<span class="text-highlight">${decompressed}</span>`;
+                    }
+                } else {
+                    highlightedText = currentText;
+                }
+            } else {
+                // Fallback to proportional highlighting
+                const textLength = currentText.length;
+                const blockCount = deflateBlocks.length;
+                const charsPerBlock = Math.ceil(textLength / blockCount);
+                
+                const start = block.index * charsPerBlock;
+                const end = Math.min(start + charsPerBlock, textLength);
+                
+                if (start > 0) {
+                    highlightedText += currentText.substring(0, start);
+                }
+                highlightedText += `<span class="text-highlight">${currentText.substring(start, end)}</span>`;
+                if (end < textLength) {
+                    highlightedText += currentText.substring(end);
+                }
+            }
+            
+            textDisplay.innerHTML = highlightedText;
+        }
+
+        function setupBlockNavigation() {
+            console.log('Setting up block navigation. Blocks found:', deflateBlocks.length);
+            console.log('Blocks:', deflateBlocks);
+            
+            if (deflateBlocks.length === 0) {
+                deflateBreakdown.style.display = 'none';
+                highlightedText.style.display = 'none';
+                return;
+            }
+            
+            deflateBreakdown.style.display = 'block';
+            highlightedText.style.display = 'block';
+            
+            blockSlider.max = Math.max(0, deflateBlocks.length - 1);
+            blockSlider.value = 0;
+            blockInfo.textContent = `Block 1 of ${deflateBlocks.length}`;
+            
+            updateBlockDisplay(0);
+        }
+
+        function compressAndDisplay() {
+            const text = inputText.value;
+            currentText = text;
+            
+            if (!text.trim()) {
+                hexOutput.innerHTML = '<div class="no-data">Enter some text to see the compressed zlib stream as hex...</div>';
+                stats.style.display = 'none';
+                deflateBreakdown.style.display = 'none';
+                highlightedText.style.display = 'none';
+                return;
+            }
+
+            try {
+                // Convert text to bytes
+                const textBytes = new TextEncoder().encode(text);
+                
+                // Compress using fflate zlib with level 9
+                const compressed = fflate.zlibSync(textBytes, { level: 9, mem: 12 });
+                
+                // Display hex dump
+                const hexDump = formatHexDump(compressed);
+                hexOutput.textContent = hexDump;
+                
+                // Parse DEFLATE blocks
+                deflateBlocks = parseDeflateBlocks(compressed);
+                
+                // Update statistics
+                const originalSizeBytes = textBytes.length;
+                const compressedSizeBytes = compressed.length;
+                const ratio = ((1 - compressedSizeBytes / originalSizeBytes) * 100).toFixed(1);
+                
+                originalSize.textContent = originalSizeBytes + ' bytes';
+                compressedSize.textContent = compressedSizeBytes + ' bytes';
+                compressionRatio.textContent = ratio + '%';
+                
+                // Add red color class if compression ratio is negative
+                if (parseFloat(ratio) < 0) {
+                    compressionRatio.classList.add('negative');
+                } else {
+                    compressionRatio.classList.remove('negative');
+                }
+                
+                stats.style.display = 'block';
+                setupBlockNavigation();
+                
+            } catch (error) {
+                hexOutput.innerHTML = '<div class="no-data" style="color: #dc3545;">Error compressing text: ' + error.message + '</div>';
+                stats.style.display = 'none';
+                deflateBreakdown.style.display = 'none';
+                highlightedText.style.display = 'none';
+            }
+        }
+
+        // Add event listener for real-time compression
+        inputText.addEventListener('input', compressAndDisplay);
+        
+        // Add event listener for block slider
+        blockSlider.addEventListener('input', function() {
+            const blockIndex = parseInt(this.value);
+            blockInfo.textContent = `Block ${blockIndex + 1} of ${deflateBlocks.length}`;
+            updateBlockDisplay(blockIndex);
+        });
+        
+        // Initial call to handle any pre-filled content
+        compressAndDisplay();
+    </script>
+</body>
+</html>
