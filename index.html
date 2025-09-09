@@ -357,6 +357,7 @@
         const textDisplay = document.getElementById('textDisplay');
 
         let deflateBlocks = [];
+        let deflateItems = [];
         let currentText = '';
 
         // Bit array utility for easier DEFLATE parsing
@@ -450,6 +451,7 @@
                     let blockSize = 0;
                     let content = '';
                     let decompressedData = '';
+                    let items = [];
                     
                     if (btype === 0) {
                         // Uncompressed block (BTYPE=00)
@@ -464,6 +466,18 @@
                             blockSize = 4 + len; // 4 bytes for len/nlen + data
                             content = `Length: ${len} bytes\nData: ${Array.from(data).map(b => b.toString(16).padStart(2, '0')).join(' ')}`;
                             decompressedData = new TextDecoder().decode(data);
+                            
+                            // Create items for uncompressed block
+                            for (let i = 0; i < data.length; i++) {
+                                const char = String.fromCharCode(data[i]);
+                                items.push({
+                                    type: 'literal',
+                                    value: char,
+                                    charCode: data[i],
+                                    position: reader.getPosition()
+                                });
+                            }
+                            content += `\n\nItems: ${items.length} literals`;
                         } else {
                             blockSize = 4;
                             content = 'Invalid uncompressed block (len != ~nlen)';
@@ -475,6 +489,7 @@
                         blockSize = result.size;
                         content = result.content;
                         decompressedData = result.decompressedData;
+                        items = result.items || [];
                     } else if (btype === 2) {
                         // Dynamic Huffman block (BTYPE=10)
                         blockType = 'Dynamic Huffman';
@@ -482,6 +497,7 @@
                         blockSize = result.size;
                         content = result.content;
                         decompressedData = result.decompressedData;
+                        items = result.items || [];
                     } else {
                         // Reserved (BTYPE=11)
                         blockType = 'Reserved (Error)';
@@ -499,6 +515,7 @@
                         end: blockEnd,
                         content: content,
                         decompressedData: decompressedData,
+                        items: items,
                         isFinal: bfinal === 1
                     });
                     
@@ -537,6 +554,7 @@
             let literalCount = 0;
             let lengthCount = 0;
             let distanceCount = 0;
+            const items = [];
             
             // Build the fixed Huffman code table according to RFC 1951
             const fixedLiteralLengthCodes = buildFixedLiteralLengthCodes();
@@ -570,9 +588,17 @@
                     
                     if (code < 256) {
                         // Literal byte
-                        decompressedData += String.fromCharCode(code);
+                        const char = String.fromCharCode(code);
+                        decompressedData += char;
                         literalCount++;
-                        content += `Literal: ${code} ('${String.fromCharCode(code)}')\n`;
+                        content += `Literal: ${code} ('${char}')\n`;
+                        
+                        items.push({
+                            type: 'literal',
+                            value: char,
+                            charCode: code,
+                            position: reader.getPosition()
+                        });
                     } else if (code === 256) {
                         // End of block
                         content += 'End of block\n';
@@ -583,10 +609,20 @@
                         const distanceCode = readDistanceCodeFixed(reader, fixedDistanceCodes);
                         const distance = getDistanceFromCode(distanceCode, reader);
                         
-                        decompressedData += `[LZ77: len=${length}, dist=${distance}]`;
+                        // Generate the repeated text for LZ77 reference
+                        const repeatedText = generateLZ77Text(length, distance, decompressedData);
+                        decompressedData += repeatedText;
                         lengthCount++;
                         distanceCount++;
-                        content += `LZ77: length=${length}, distance=${distance}\n`;
+                        content += `LZ77: length=${length}, distance=${distance} -> "${repeatedText}"\n`;
+                        
+                        items.push({
+                            type: 'lz77',
+                            length: length,
+                            distance: distance,
+                            text: repeatedText,
+                            position: reader.getPosition()
+                        });
                     }
                 }
             } catch (error) {
@@ -599,8 +635,23 @@
             return {
                 size: endPos.byte - startPos.byte,
                 content: content,
-                decompressedData: decompressedData
+                decompressedData: decompressedData,
+                items: items
             };
+        }
+
+        // Generate the actual repeated text for LZ77 references
+        function generateLZ77Text(length, distance, currentData) {
+            let result = '';
+            const startPos = currentData.length - distance;
+            
+            for (let i = 0; i < length; i++) {
+                if (startPos + i >= 0 && startPos + i < currentData.length) {
+                    result += currentData[startPos + i];
+                }
+            }
+            
+            return result;
         }
 
         // Build fixed literal/length codes according to RFC 1951
@@ -669,6 +720,7 @@
             const startPos = reader.getPosition();
             let content = 'Dynamic Huffman codes:\n';
             let decompressedData = '';
+            const items = [];
             
             try {
                 // Read header
@@ -749,9 +801,17 @@
                     
                     if (symbol < 256) {
                         // Literal byte
-                        decompressedData += String.fromCharCode(symbol);
+                        const char = String.fromCharCode(symbol);
+                        decompressedData += char;
                         literalCount++;
-                        content += `Literal: ${symbol} ('${String.fromCharCode(symbol)}')\n`;
+                        content += `Literal: ${symbol} ('${char}')\n`;
+                        
+                        items.push({
+                            type: 'literal',
+                            value: char,
+                            charCode: symbol,
+                            position: reader.getPosition()
+                        });
                     } else if (symbol === 256) {
                         // End of block
                         content += 'End of block\n';
@@ -762,10 +822,20 @@
                         const distanceSymbol = decodeSymbol(reader, distanceTree);
                         const distance = getDistanceFromCode(distanceSymbol, reader);
                         
-                        decompressedData += `[LZ77: len=${length}, dist=${distance}]`;
+                        // Generate the repeated text for LZ77 reference
+                        const repeatedText = generateLZ77Text(length, distance, decompressedData);
+                        decompressedData += repeatedText;
                         lengthCount++;
                         distanceCount++;
-                        content += `LZ77: length=${length}, distance=${distance}\n`;
+                        content += `LZ77: length=${length}, distance=${distance} -> "${repeatedText}"\n`;
+                        
+                        items.push({
+                            type: 'lz77',
+                            length: length,
+                            distance: distance,
+                            text: repeatedText,
+                            position: reader.getPosition()
+                        });
                     }
                 }
                 
@@ -780,7 +850,8 @@
             return {
                 size: endPos.byte - startPos.byte,
                 content: content,
-                decompressedData: decompressedData
+                decompressedData: decompressedData,
+                items: items
             };
         }
 
@@ -913,25 +984,88 @@
             return result;
         }
 
-        function updateBlockDisplay(blockIndex) {
-            if (deflateBlocks.length === 0) return;
+        function updateItemDisplay(itemIndex) {
+            if (deflateItems.length === 0) return;
             
-            const block = deflateBlocks[blockIndex];
+            const item = deflateItems[itemIndex];
+            const block = deflateBlocks[item.blockIndex];
+            
             blockType.textContent = block.type;
             blockSize.textContent = block.size + ' bytes';
-            blockPosition.textContent = `Byte ${block.start.byte}.${block.start.bit} - ${block.end.byte}.${block.end.bit}`;
+            blockPosition.textContent = `Item ${itemIndex + 1} of ${deflateItems.length} (Block ${item.blockIndex + 1})`;
             
-            // Create block visualization
-            let visualization = `Block ${block.index} (${block.type})\n`;
-            visualization += `Size: ${block.size} bytes\n`;
-            visualization += `Position: Byte ${block.start.byte}.${block.start.bit} - ${block.end.byte}.${block.end.bit}\n`;
-            visualization += `Final: ${block.isFinal ? 'Yes' : 'No'}\n\n`;
-            visualization += block.content;
+            // Create item visualization
+            let visualization = `Item ${itemIndex + 1} of ${deflateItems.length}\n`;
+            visualization += `Block: ${item.blockIndex + 1} (${block.type})\n`;
+            visualization += `Type: ${item.type.toUpperCase()}\n`;
+            
+            if (item.type === 'literal') {
+                visualization += `Value: ${item.charCode} ('${item.value}')\n`;
+            } else if (item.type === 'lz77') {
+                visualization += `Length: ${item.length}\n`;
+                visualization += `Distance: ${item.distance}\n`;
+                visualization += `Text: "${item.text}"\n`;
+            }
             
             blockVisualization.textContent = visualization;
             
-            // Update highlighted text with actual decompressed data
-            updateHighlightedText(block);
+            // Update highlighted text
+            updateHighlightedTextForItem(item, itemIndex);
+        }
+
+        function updateHighlightedTextForItem(item, itemIndex) {
+            if (!currentText) return;
+            
+            // Build the decompressed text up to this point
+            let decompressedSoFar = '';
+            for (let i = 0; i <= itemIndex; i++) {
+                const currentItem = deflateItems[i];
+                if (currentItem.type === 'literal') {
+                    decompressedSoFar += currentItem.value;
+                } else if (currentItem.type === 'lz77') {
+                    decompressedSoFar += currentItem.text;
+                }
+            }
+            
+            // Find this text in the original
+            const textIndex = currentText.indexOf(decompressedSoFar);
+            if (textIndex !== -1) {
+                const before = currentText.substring(0, textIndex);
+                const highlighted = currentText.substring(textIndex, textIndex + decompressedSoFar.length);
+                const after = currentText.substring(textIndex + decompressedSoFar.length);
+                
+                // Highlight the current item specifically
+                let highlightedText = before;
+                
+                // Add all previous items
+                let currentPos = 0;
+                for (let i = 0; i < itemIndex; i++) {
+                    const prevItem = deflateItems[i];
+                    if (prevItem.type === 'literal') {
+                        highlightedText += prevItem.value;
+                        currentPos += 1;
+                    } else if (prevItem.type === 'lz77') {
+                        highlightedText += prevItem.text;
+                        currentPos += prevItem.text.length;
+                    }
+                }
+                
+                // Highlight the current item
+                if (item.type === 'literal') {
+                    highlightedText += `<span class="text-highlight">${item.value}</span>`;
+                } else if (item.type === 'lz77') {
+                    highlightedText += `<span class="text-highlight">${item.text}</span>`;
+                }
+                
+                // Add remaining text
+                const remainingStart = textIndex + decompressedSoFar.length;
+                highlightedText += currentText.substring(remainingStart);
+                
+                textDisplay.innerHTML = highlightedText;
+            } else {
+                // Fallback: show the decompressed text
+                textDisplay.innerHTML = `<span class="text-highlight">${decompressedSoFar}</span>`;
+            }
         }
 
         function updateHighlightedText(block) {
@@ -981,11 +1115,11 @@
             textDisplay.innerHTML = highlightedText;
         }
 
-        function setupBlockNavigation() {
-            console.log('Setting up block navigation. Blocks found:', deflateBlocks.length);
-            console.log('Blocks:', deflateBlocks);
+        function setupItemNavigation() {
+            console.log('Setting up item navigation. Items found:', deflateItems.length);
+            console.log('Items:', deflateItems);
             
-            if (deflateBlocks.length === 0) {
+            if (deflateItems.length === 0) {
                 deflateBreakdown.style.display = 'none';
                 highlightedText.style.display = 'none';
                 return;
@@ -994,11 +1128,11 @@
             deflateBreakdown.style.display = 'block';
             highlightedText.style.display = 'block';
             
-            blockSlider.max = Math.max(0, deflateBlocks.length - 1);
+            blockSlider.max = Math.max(0, deflateItems.length - 1);
             blockSlider.value = 0;
-            blockInfo.textContent = `Block 1 of ${deflateBlocks.length}`;
+            blockInfo.textContent = `Item 1 of ${deflateItems.length}`;
             
-            updateBlockDisplay(0);
+            updateItemDisplay(0);
         }
 
         function compressAndDisplay() {
@@ -1027,6 +1161,24 @@
                 // Parse DEFLATE blocks
                 deflateBlocks = parseDeflateBlocks(compressed);
                 
+                // Collect all items from all blocks
+                deflateItems = [];
+                deflateBlocks.forEach(block => {
+                    if (block.items) {
+                        block.items.forEach((item, index) => {
+                            deflateItems.push({
+                                ...item,
+                                blockIndex: block.index,
+                                itemIndex: index,
+                                globalIndex: deflateItems.length
+                            });
+                        });
+                    }
+                });
+                
+                console.log('Total items:', deflateItems.length);
+                console.log('Items:', deflateItems);
+                
                 // Update statistics
                 const originalSizeBytes = textBytes.length;
                 const compressedSizeBytes = compressed.length;
@@ -1044,7 +1196,7 @@
                 }
                 
                 stats.style.display = 'block';
-                setupBlockNavigation();
+                setupItemNavigation();
                 
             } catch (error) {
                 hexOutput.innerHTML = '<div class="no-data" style="color: #dc3545;">Error compressing text: ' + error.message + '</div>';
@@ -1057,11 +1209,11 @@
         // Add event listener for real-time compression
         inputText.addEventListener('input', compressAndDisplay);
         
-        // Add event listener for block slider
+        // Add event listener for item slider
         blockSlider.addEventListener('input', function() {
-            const blockIndex = parseInt(this.value);
-            blockInfo.textContent = `Block ${blockIndex + 1} of ${deflateBlocks.length}`;
-            updateBlockDisplay(blockIndex);
+            const itemIndex = parseInt(this.value);
+            blockInfo.textContent = `Item ${itemIndex + 1} of ${deflateItems.length}`;
+            updateItemDisplay(itemIndex);
         });
         
         // Initial call to handle any pre-filled content
