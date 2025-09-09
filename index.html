@@ -86,8 +86,8 @@
             padding: 15px;
             border: 2px solid #e9ecef;
             border-radius: 8px;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
+            font-family: monospace;
+            font-size: 18px;
             resize: vertical;
             transition: border-color 0.3s ease;
         }
@@ -103,8 +103,8 @@
             color: #d4d4d4;
             padding: 15px;
             border-radius: 8px;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
+            font-family: monospace;
+            font-size: 16px;
             line-height: 1.4;
             height: 300px;
             overflow-y: auto;
@@ -262,6 +262,10 @@
             background: #2196f3;
             color: #fff;
             font-weight: bold;
+        }
+
+        .hex-dim {
+            color: #666;
         }
 
         .no-data {
@@ -772,53 +776,92 @@
                 }
                 
                 content += 'Code length codes: ' + codeLengths.slice(0, hclen).join(', ') + '\n';
+                console.log('Code length codes:', codeLengths);
+                console.log('HCLEN:', hclen);
                 
                 // Build Huffman tree for code lengths
-                const codeLengthTree = buildHuffmanTree(codeLengths, 19);
+                const codeLengthTree = buildHuffmanTree(codeLengths, 18);
                 content += `\nCode length tree built\n`;
                 
                 // Decode literal/length and distance code lengths
                 const allCodeLengths = [];
                 let totalCodes = hlit + hdist;
                 
-                while (allCodeLengths.length < totalCodes) {
-                    const symbol = decodeSymbol(reader, codeLengthTree);
-                    
-                    if (symbol < 16) {
-                        // Direct code length
-                        allCodeLengths.push(symbol);
-                    } else if (symbol === 16) {
-                        // Copy previous code length 3-6 times
-                        const repeat = reader.readBits(2) + 3;
-                        const lastLength = allCodeLengths[allCodeLengths.length - 1];
-                        for (let i = 0; i < repeat; i++) {
-                            allCodeLengths.push(lastLength);
+                console.log('Decoding code length codes...');
+                console.log('  Total codes needed:', totalCodes);
+                console.log('  Available bits before decoding:', (reader.data.length - reader.byteIndex) * 8 - reader.bitIndex);
+                
+                let attempts = 0;
+                while (allCodeLengths.length < totalCodes && attempts < 1000) {
+                    attempts++;
+                    try {
+                        console.log(`  Decoding code ${allCodeLengths.length + 1}/${totalCodes}, available bits: ${(reader.data.length - reader.byteIndex) * 8 - reader.bitIndex}`);
+                        console.log(`  Reader position: ${reader.byteIndex}.${reader.bitIndex}`);
+                        console.log(`  Code length tree entries:`, Object.keys(codeLengthTree).length);
+                        const symbolResult = decodeSymbol(reader, codeLengthTree);
+                        const symbol = symbolResult.symbol;
+                        console.log(`    Decoded symbol: ${symbol}`);
+                        
+                        if (symbol < 16) {
+                            // Direct code length
+                            allCodeLengths.push(symbol);
+                            console.log(`    Direct code length: ${symbol}, array length now: ${allCodeLengths.length}`);
+                        } else if (symbol === 16) {
+                            // Copy previous code length 3-6 times
+                            const repeat = reader.readBits(2) + 3;
+                            const lastLength = allCodeLengths[allCodeLengths.length - 1];
+                            console.log(`    Copy ${lastLength} for ${repeat} times`);
+                            for (let i = 0; i < repeat; i++) {
+                                allCodeLengths.push(lastLength);
+                            }
+                        } else if (symbol === 17) {
+                            // Repeat code length 0 for 3-10 times
+                            const repeat = reader.readBits(3) + 3;
+                            console.log(`    Repeat 0 for ${repeat} times`);
+                            for (let i = 0; i < repeat; i++) {
+                                allCodeLengths.push(0);
+                            }
+                        } else if (symbol === 18) {
+                            // Repeat code length 0 for 11-138 times
+                            const repeat = reader.readBits(7) + 11;
+                            console.log(`    Repeat 0 for ${repeat} times`);
+                            for (let i = 0; i < repeat; i++) {
+                                allCodeLengths.push(0);
+                            }
                         }
-                    } else if (symbol === 17) {
-                        // Repeat code length 0 for 3-10 times
-                        const repeat = reader.readBits(3) + 3;
-                        for (let i = 0; i < repeat; i++) {
-                            allCodeLengths.push(0);
-                        }
-                    } else if (symbol === 18) {
-                        // Repeat code length 0 for 11-138 times
-                        const repeat = reader.readBits(7) + 11;
-                        for (let i = 0; i < repeat; i++) {
-                            allCodeLengths.push(0);
-                        }
+                    } catch (error) {
+                        console.log(`Error decoding code length at position ${allCodeLengths.length}:`, error.message);
+                        console.log(`  Available bits: ${(reader.data.length - reader.byteIndex) * 8 - reader.bitIndex}`);
+                        console.log(`  Codes decoded so far: ${allCodeLengths.length}/${totalCodes}`);
+                        throw error;
                     }
                 }
+                
+                if (attempts >= 1000) {
+                    console.log('Warning: Hit attempt limit, stopping code length decoding');
+                }
+                
+                console.log(`Code length decoding complete: ${allCodeLengths.length}/${totalCodes} codes decoded`);
                 
                 // Split into literal/length and distance code lengths
                 const literalLengths = allCodeLengths.slice(0, hlit);
                 const distanceLengths = allCodeLengths.slice(hlit, hlit + hdist);
                 
+                console.log(`Literal/length code lengths: ${literalLengths.length} codes`);
+                console.log(`Distance code lengths: ${distanceLengths.length} codes`);
+                
+                if (literalLengths.length === 0 || distanceLengths.length === 0) {
+                    content += `ERROR: Failed to decode code lengths. Got ${allCodeLengths.length}/${totalCodes} codes.\n`;
+                    content += `This suggests the compressed data is corrupted or the parser has a bug.\n`;
+                    throw new Error(`Failed to decode code lengths: got ${allCodeLengths.length}/${totalCodes} codes`);
+                }
+                
                 content += `Literal/length code lengths: ${literalLengths.slice(0, 20).join(', ')}${literalLengths.length > 20 ? '...' : ''}\n`;
                 content += `Distance code lengths: ${distanceLengths.join(', ')}\n\n`;
                 
                 // Build Huffman trees
-                const literalLengthTree = buildHuffmanTree(literalLengths, hlit);
-                const distanceTree = buildHuffmanTree(distanceLengths, hdist);
+                const literalLengthTree = buildHuffmanTree(literalLengths, hlit - 1);
+                const distanceTree = buildHuffmanTree(distanceLengths, hdist - 1);
                 
                 content += `Huffman trees built\n\n`;
                 
@@ -895,13 +938,24 @@
 
         // Build Huffman tree from code lengths
         function buildHuffmanTree(codeLengths, maxSymbol) {
+            console.log('Building Huffman tree:');
+            console.log('  Code lengths:', codeLengths.slice(0, Math.min(20, codeLengths.length)));
+            console.log('  Max symbol:', maxSymbol);
+            
+            if (codeLengths.length === 0) {
+                console.log('  ERROR: Empty code lengths array');
+                throw new Error('Cannot build Huffman tree from empty code lengths array');
+            }
+            
             // Count codes of each length
             const blCount = new Array(16).fill(0);
-            for (let i = 0; i < maxSymbol; i++) {
+            for (let i = 0; i <= maxSymbol; i++) {
                 if (codeLengths[i] > 0) {
                     blCount[codeLengths[i]]++;
                 }
             }
+            
+            console.log('  Length counts:', blCount);
             
             // Find minimum code for each length
             const nextCode = new Array(16).fill(0);
@@ -913,15 +967,25 @@
                 nextCode[bits] = code;
             }
             
+            console.log('  Next codes:', nextCode);
+            
             // Assign codes
             const tree = {};
-            for (let i = 0; i < maxSymbol; i++) {
+            for (let i = 0; i <= maxSymbol; i++) {
                 const len = codeLengths[i];
                 if (len !== 0) {
-                    tree[nextCode[len]] = { symbol: i, length: len };
+                    const codeValue = nextCode[len];
+                    console.log(`  Assigning code ${codeValue} to symbol ${i} with length ${len}`);
+                    if (isNaN(codeValue) || codeValue === undefined) {
+                        console.log(`  ERROR: Invalid code value for length ${len}, nextCode[${len}] = ${nextCode[len]}`);
+                    }
+                    tree[codeValue] = { symbol: i, length: len };
                     nextCode[len]++;
                 }
             }
+            
+            console.log('  Tree entries:', Object.keys(tree).length);
+            console.log('  Sample tree entries:', Object.entries(tree).slice(0, 10));
             
             return tree;
         }
@@ -931,13 +995,22 @@
             let code = 0;
             let bits = 0;
             const startPos = reader.getPosition();
+            const debugBits = [];
+            
+            console.log(`    decodeSymbol: Starting at position ${startPos.byte}.${startPos.bit}`);
+            console.log(`    decodeSymbol: Tree has ${Object.keys(tree).length} entries:`, Object.keys(tree));
             
             // Read bits until we find a valid code
             while (bits < 15) { // Maximum code length is 15
-                code |= reader.readBits(1) << bits;
+                const bit = reader.readBits(1);
+                code = (code << 1) | bit; // Build code MSB-first
                 bits++;
+                debugBits.push(bit);
+                
+                console.log(`    decodeSymbol: Read bit ${bit}, code now ${code.toString(2).padStart(bits, '0')}, bits=${bits}`);
                 
                 if (tree[code] && tree[code].length === bits) {
+                    console.log(`    decodeSymbol: Found match! Symbol ${tree[code].symbol}`);
                     return {
                         symbol: tree[code].symbol,
                         bitStart: startPos.byte * 8 + startPos.bit,
@@ -946,7 +1019,15 @@
                 }
             }
             
-            throw new Error('Invalid Huffman code');
+            // Debug information for failed decode
+            const currentPos = reader.getPosition();
+            console.log('Failed to decode Huffman code:');
+            console.log('  Bits read:', debugBits.join(''));
+            console.log('  Code value:', code.toString(2).padStart(bits, '0'));
+            console.log('  Position:', `${currentPos.byte}.${currentPos.bit}`);
+            console.log('  Available tree entries:', Object.keys(tree).filter(k => tree[k].length <= bits));
+            
+            throw new Error(`Invalid Huffman code: ${debugBits.join('')} (${code}) at position ${currentPos.byte}.${currentPos.bit}`);
         }
 
         // Helper functions for LZ77 decoding
@@ -1037,10 +1118,10 @@
                                 const gradientOffset = (startBit / 8) * 100;
                                 
                                 const gradientStyle = `background: linear-gradient(90deg, 
-                                    transparent ${gradientOffset}%, 
+                                    purple ${gradientOffset}%, 
                                     #2196f3 ${gradientOffset}%, 
                                     #2196f3 ${gradientOffset + gradientPercent}%, 
-                                    transparent ${gradientOffset + gradientPercent}%); 
+                                    purple ${gradientOffset + gradientPercent}%); 
                                     color: #fff; font-weight: bold;`;
                                 
                                 hexLine += `<span style="${gradientStyle}">${hexStr}</span>`;
@@ -1051,7 +1132,7 @@
                                 const gradientOffset = (startBit / 8) * 100;
                                 
                                 const gradientStyle = `background: linear-gradient(90deg, 
-                                    transparent ${gradientOffset}%, 
+                                    purple ${gradientOffset}%, 
                                     #2196f3 ${gradientOffset}%, 
                                     #2196f3 100%); 
                                     color: #fff; font-weight: bold;`;
@@ -1065,7 +1146,7 @@
                                 const gradientStyle = `background: linear-gradient(90deg, 
                                     #2196f3 0%, 
                                     #2196f3 ${gradientPercent}%, 
-                                    transparent ${gradientPercent}%); 
+                                    purple ${gradientPercent}%); 
                                     color: #fff; font-weight: bold;`;
                                 
                                 hexLine += `<span style="${gradientStyle}">${hexStr}</span>`;
@@ -1073,13 +1154,15 @@
                                 // Full byte highlight (middle bytes)
                                 hexLine += `<span class="hex-highlight">${hexStr}</span>`;
                             }
+                        } else if (i+j < 2 || i+j >= bytes.length - 4) {
+                            hexLine += `<span class="hex-dim">${hexStr}</span>`;
                         } else {
                             hexLine += hexStr;
                         }
                         
                         // Add space after each byte (except the last one in the line)
                         if (j < 15 && i + j + 1 < bytes.length) {
-                            hexLine += ' ';
+                            hexLine += '<span style="display:inline-block; width: 2px;"></span>';
                         }
                     }
                 }
