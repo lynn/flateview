@@ -1,5 +1,6 @@
 import React from "react";
 import type { DeflateItem } from "../types";
+import { useTheme } from "../contexts/ThemeContext";
 
 interface DeflateItemProps {
   item: DeflateItem;
@@ -26,18 +27,16 @@ export const Stretch = ({
   height: number;
 }) => {
   const factor = targetLength / sourceLength;
-  const fontStretch = 1;
-  const restStretch = factor / fontStretch;
+  const y = height / factor;
   return (
     <div
-      className={`relative w-full font-mono break-all my-1`}
+      className={`relative w-full font-mono break-all mt-1 flex items-center`}
       style={{ height: `${height}em` }}
     >
       <div
-        className={`absolute origin-top-left overflow-visible whitespace-nowrap`}
+        className={`absolute origin-left overflow-visible whitespace-nowrap flex`}
         style={{
-          transform: `scaleX(${restStretch}) scaleY(${height})`,
-          fontVariationSettings: `"wdth" ${fontStretch * 100}`,
+          transform: `scaleX(${factor}) scaleY(${y * factor})`,
         }}
       >
         {children}
@@ -67,7 +66,7 @@ export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
       const endBitInByte = byteIndex === endByte ? endBit : 7;
 
       for (let i = startBitInByte; i <= endBitInByte; i++) {
-        bits += ((byte >> i) & 1) ? "ı" : "o";
+        bits += (byte >> i) & 1 ? "ı" : "o";
       }
     }
 
@@ -89,11 +88,13 @@ export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
       case "zlib_checksum":
         return `checksum`;
       case "dynamic_huffman_header":
-        return `dyn. huffman`;
+        return `parameters`;
       case "dynamic_huffman_distance":
         return showWhitespace(new TextDecoder().decode(item.text));
       case "dynamic_huffman_length":
         return ` `;
+      case "block_start":
+        return `block`;
       case "end_of_block":
         return "end";
       default:
@@ -113,11 +114,13 @@ export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
       case "zlib_header":
         return `${item.compressionMethod},${item.compressionInfo};${item.fcheck},${item.fdict},${item.flevel}`;
       case "zlib_checksum":
-        return `${item.checksum.toString(16).toUpperCase().padStart(8, "0")}`;
+        return `${item.checksum.toString(16).padStart(8, "0")}`;
       case "dynamic_huffman_header":
         return `(${item.hlit},${item.hdist},${item.hclen})`;
       case "dynamic_huffman_length":
         return `${item.text}`;
+      case "block_start":
+        return `${item.flavor}`;
       case "end_of_block":
         return "";
       default:
@@ -131,19 +134,20 @@ export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
       case "dynamic_huffman_literal":
       case "literal":
         if (item.symbol < 127) {
-          return "bg-blue-800 border-blue-600 text-blue-100";
+          return "bg-gray-100 text-blue-500 dark:bg-blue-800 dark:border-blue-600 dark:text-blue-100";
         } else {
-          return "bg-teal-800 border-teal-600 text-teal-100";
+          return "bg-gray-100 dark:bg-teal-800 dark:border-teal-600 dark:text-teal-100";
         }
       case "lz77":
       case "dynamic_huffman_distance":
-        return "bg-amber-800 border-amber-600 text-amber-100";
+        return "bg-gray-100 dark:bg-amber-800 dark:border-amber-600 dark:text-amber-100";
       case "dynamic_huffman_header":
       case "zlib_header":
       case "zlib_checksum":
-        return "bg-rose-800 border-purple-600 text-purple-100";
+      case "block_start":
+        return "bg-gray-100 dark:bg-rose-800 dark:border-purple-600 dark:text-purple-100";
       default:
-        return "bg-gray-700 border-gray-500 text-gray-200";
+        return "bg-gray-100 dark:bg-gray-700 dark:border-gray-500 dark:text-gray-200";
     }
   };
 
@@ -152,9 +156,14 @@ export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
   const typeColor = getItemTypeColor(item);
   const explanation = getItemExplanation(item);
 
+  const { theme } = useTheme();
+  const darkMode = theme === "dark";
+  const lightness = darkMode ? 0.35 : 0.95;
   const background =
-    item.type === "dynamic_huffman_literal" || item.type === "literal"
-      ? `oklab(0.35 ${bits.length * 0.04 - 0.15} -0.1)`
+    theme === "light"
+      ? ""
+      : item.type === "dynamic_huffman_literal" || item.type === "literal"
+      ? `oklab(${lightness} ${bits.length * 0.04 - 0.15} -0.1)`
       : "";
 
   return (
@@ -170,7 +179,7 @@ export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
         <span className="opacity-50">
           {"numLengthBits" in item ? (
             <>
-              <span className="border-b border-r">
+              <span className="border-b border-r dark:border-gray-200 border-gray-700">
                 {explanation.slice(0, explanation.indexOf("←"))}
               </span>
               <span>{explanation.slice(explanation.indexOf("←"))}</span>
@@ -185,10 +194,10 @@ export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
         {text}
       </Stretch>
 
-      <div className="font-mono opacity-50">
+      <div className="font-mono opacity-50 flex mt-1">
         {"numLengthBits" in item ? (
           <>
-            <span className="border-t border-r pe-[1px] me-[1px]">
+            <span className="border-t border-r dark:border-gray-200 border-gray-700 pe-[1px] me-[1px]">
               {bits.slice(0, item.numLengthBits)}
             </span>
             <span className="">{bits.slice(item.numLengthBits)}</span>

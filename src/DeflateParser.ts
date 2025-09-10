@@ -14,6 +14,7 @@ import type {
   LengthTableEntry,
   DistanceTableEntry,
   DynamicHuffmanHeaderItem,
+  BlockStartItem,
 } from "./types";
 
 export class DeflateParser {
@@ -149,6 +150,7 @@ export class DeflateParser {
 
   private parseUncompressedBlock(reader: BitReader): DeflateBlock {
     const startPos = reader.getPosition();
+    const startBitPos = reader.getBitPosition();
     reader.alignToByte();
 
     const len = reader.readByte() | (reader.readByte() << 8);
@@ -163,6 +165,14 @@ export class DeflateParser {
 
     let content = `Uncompressed block (${len} bytes)\n`;
     const items: DeflateItem[] = [];
+
+    items.push({
+      type: "block_start",
+      flavor: "uncompressed",
+      bitStart: startBitPos - 3,
+      bitEnd: startBitPos,
+      position: { byte: Math.floor((startBitPos - 3) / 8), bit: (startBitPos - 3) % 8 },
+    } satisfies BlockStartItem);
 
     for (let i = 0; i < data.length; i++) {
       const bitStart = (dataStartPos.byte + i) * 8 + dataStartPos.bit;
@@ -192,9 +202,19 @@ export class DeflateParser {
 
   private parseFixedHuffmanBlock(reader: BitReader): DeflateBlock {
     const startPos = reader.getPosition();
+    const startBitPos = reader.getBitPosition();
     let content = "Fixed Huffman codes:\n";
     const items: DeflateItem[] = [];
     let decompressedData = new Uint8Array(0);
+
+    items.push({
+      type: "block_start",
+      flavor: "fixed",
+      bitStart: startBitPos - 3,
+      bitEnd: startBitPos,
+      position: { byte: Math.floor((startBitPos - 3) / 8), bit: (startBitPos - 3) % 8 },
+    } satisfies BlockStartItem);
+
 
     try {
       const fixedLiteralLengthCodes = this.buildFixedLiteralLengthCodes();
@@ -339,9 +359,18 @@ export class DeflateParser {
 
   private parseDynamicHuffmanBlock(reader: BitReader): DeflateBlock {
     const startPos = reader.getPosition();
+    const startBitPos = reader.getBitPosition();
     let content = "Dynamic Huffman codes:\n";
     const items: DeflateItem[] = [];
     let decompressedData = new Uint8Array(0);
+
+    items.push({
+      type: "block_start",
+      flavor: "dynamic",
+      bitStart: startBitPos - 3,
+      bitEnd: startBitPos,
+      position: { byte: Math.floor((startBitPos - 3) / 8), bit: (startBitPos - 3) % 8 },
+    } satisfies BlockStartItem);
 
     try {
       // Read header

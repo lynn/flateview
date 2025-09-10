@@ -9,11 +9,11 @@ export const StatsSection: React.FC<StatsSectionProps> = ({ stats }) => {
   if (!stats) return null;
 
   return (
-    <span className="text-sm font-semibold text-gray-400">
+    <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">
       {stats.originalSize} bytes → {stats.compressedSize} bytes (
       <span
         className={`font-bold ${
-          stats.ratio > 0 ? "text-red-400" : "text-gray-100"
+          stats.ratio > 0 ? "text-red-500 dark:text-red-400" : "text-gray-900 dark:text-gray-100"
         }`}
       >
         {(stats.ratio * 100).toFixed(1)}%

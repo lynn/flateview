@@ -14,6 +14,12 @@ interface BaseDeflateItem {
   itemIndex?: number;
 }
 
+// Block start item
+export interface BlockStartItem extends BaseDeflateItem {
+  type: 'block_start';
+  flavor: string;
+}
+
 // Literal item
 export interface LiteralItem extends BaseDeflateItem {
   type: 'literal';
@@ -84,6 +90,7 @@ export interface EndOfBlockItem extends BaseDeflateItem {
 
 // Union type for all DeflateItem types
 export type DeflateItem = 
+  | BlockStartItem
   | LiteralItem
   | LZ77Item
   | ZlibHeaderItem
