@@ -6,6 +6,46 @@ interface DeflateItemProps {
   compressedData: Uint8Array | null;
 }
 
+function showWhitespace(text: string): string {
+  return text
+    .replaceAll(" ", "·")
+    .replaceAll("\n", "␤")
+    .replaceAll("\r", "␤")
+    .replaceAll("\t", "␉");
+}
+
+export const Stretch = ({
+  sourceLength,
+  targetLength,
+  children,
+  height,
+}: {
+  sourceLength: number;
+  targetLength: number;
+  children: React.ReactNode;
+  height: number;
+}) => {
+  const factor = targetLength / sourceLength;
+  const fontStretch = 1;
+  const restStretch = factor / fontStretch;
+  return (
+    <div
+      className={`relative w-full font-mono break-all my-1`}
+      style={{ height: `${height}em` }}
+    >
+      <div
+        className={`absolute origin-top-left overflow-visible whitespace-nowrap`}
+        style={{
+          transform: `scaleX(${restStretch}) scaleY(${height})`,
+          fontVariationSettings: `"wdth" ${fontStretch * 100}`,
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+};
+
 export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
   item,
   compressedData,
@@ -21,22 +61,13 @@ export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
 
     let bits = "";
 
-    if (startByte === endByte) {
-      // All bits are in the same byte
-      const byte = compressedData[startByte];
-      for (let i = startBit; i <= endBit; i++) {
-        bits += ((byte >> i) & 1).toString();
-      }
-    } else {
-      // Bits span multiple bytes
-      for (let byteIndex = startByte; byteIndex <= endByte; byteIndex++) {
-        const byte = compressedData[byteIndex];
-        const startBitInByte = byteIndex === startByte ? startBit : 0;
-        const endBitInByte = byteIndex === endByte ? endBit : 7;
+    for (let byteIndex = startByte; byteIndex <= endByte; byteIndex++) {
+      const byte = compressedData[byteIndex];
+      const startBitInByte = byteIndex === startByte ? startBit : 0;
+      const endBitInByte = byteIndex === endByte ? endBit : 7;
 
-        for (let i = startBitInByte; i <= endBitInByte; i++) {
-          bits += ((byte >> i) & 1).toString();
-        }
+      for (let i = startBitInByte; i <= endBitInByte; i++) {
+        bits += ((byte >> i) & 1) ? "ı" : "o";
       }
     }
 
@@ -46,27 +77,49 @@ export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
   // Get text content for this item
   const getItemText = (item: DeflateItem): string => {
     switch (item.type) {
-      case "literal":
-        return item.value;
-      case "lz77":
-        return new TextDecoder().decode(item.text);
-      case "zlib_header":
-        return `(header)`;
-      case "zlib_checksum":
-        return `checksum=${item.checksum
-          .toString(16)
-          .toUpperCase()
-          .padStart(8, "0")}`;
-      case "dynamic_huffman_header":
-        return `huff(${item.hlit},${item.hdist},${item.hclen})`;
       case "dynamic_huffman_literal":
-        return String.fromCharCode(item.symbol);
+      case "literal":
+        return item.symbol < 127
+          ? showWhitespace(String.fromCharCode(item.symbol))
+          : `\\x${item.symbol.toString(16).padStart(2, "0")}`;
+      case "lz77":
+        return showWhitespace(new TextDecoder().decode(item.text));
+      case "zlib_header":
+        return `zlib header`;
+      case "zlib_checksum":
+        return `checksum`;
+      case "dynamic_huffman_header":
+        return `dyn. huffman`;
       case "dynamic_huffman_distance":
-        return new TextDecoder().decode(item.text);
+        return showWhitespace(new TextDecoder().decode(item.text));
+      case "dynamic_huffman_length":
+        return ` `;
+      case "end_of_block":
+        return "end";
+      default:
+        return "";
+    }
+  };
+
+  // Get text content for this item
+  const getItemExplanation = (item: DeflateItem): string => {
+    switch (item.type) {
+      case "dynamic_huffman_literal":
+      case "literal":
+        return item.symbol.toString(16).padStart(2, "0");
+      case "lz77":
+      case "dynamic_huffman_distance":
+        return `×${item.length}←${item.distance}`;
+      case "zlib_header":
+        return `${item.compressionMethod},${item.compressionInfo};${item.fcheck},${item.fdict},${item.flevel}`;
+      case "zlib_checksum":
+        return `${item.checksum.toString(16).toUpperCase().padStart(8, "0")}`;
+      case "dynamic_huffman_header":
+        return `(${item.hlit},${item.hdist},${item.hclen})`;
       case "dynamic_huffman_length":
         return `${item.text}`;
       case "end_of_block":
-        return "end";
+        return "";
       default:
         return "";
     }
@@ -77,12 +130,17 @@ export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
     switch (item.type) {
       case "dynamic_huffman_literal":
       case "literal":
-        return "bg-blue-800 border-blue-600 text-blue-100";
+        if (item.symbol < 127) {
+          return "bg-blue-800 border-blue-600 text-blue-100";
+        } else {
+          return "bg-teal-800 border-teal-600 text-teal-100";
+        }
       case "lz77":
       case "dynamic_huffman_distance":
         return "bg-amber-800 border-amber-600 text-amber-100";
       case "dynamic_huffman_header":
       case "zlib_header":
+      case "zlib_checksum":
         return "bg-rose-800 border-purple-600 text-purple-100";
       default:
         return "bg-gray-700 border-gray-500 text-gray-200";
@@ -92,28 +150,52 @@ export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
   const bits = getItemBits(item);
   const text = getItemText(item);
   const typeColor = getItemTypeColor(item);
+  const explanation = getItemExplanation(item);
 
-  const factor = bits.length / text.length;
+  const background =
+    item.type === "dynamic_huffman_literal" || item.type === "literal"
+      ? `oklab(0.35 ${bits.length * 0.04 - 0.15} -0.1)`
+      : "";
 
   return (
     <div
-      className={`relative ${typeColor} flex flex-col items-center min-w-0 rounded-sm`}
+      className={`relative ${typeColor} tracking-tight flex flex-col items-center min-w-0 rounded-sm`}
+      style={{ background, lineHeight: 1 }}
     >
-      <div className={`relative w-full font-mono break-all`}>
-        <div
-          className={`absolute origin-top-left tracking-tight overflow-visible whitespace-nowrap`}
-          style={{ transform: `scaleX(${factor}) scaleY(2)` }}
-        >
-          {text
-            .replaceAll(" ", "·")
-            .replaceAll("\n", "␤")
-            .replaceAll("\r", "␤")
-            .replaceAll("\t", "␉")}
-        </div>
-      </div>
+      <Stretch
+        sourceLength={explanation.length}
+        targetLength={bits.length}
+        height={1.5}
+      >
+        <span className="opacity-50">
+          {"numLengthBits" in item ? (
+            <>
+              <span className="border-b border-r">
+                {explanation.slice(0, explanation.indexOf("←"))}
+              </span>
+              <span>{explanation.slice(explanation.indexOf("←"))}</span>
+            </>
+          ) : (
+            <span>{explanation}</span>
+          )}
+        </span>
+      </Stretch>
 
-      <div className="mt-10 font-mono text-center break-all tracking-tight">
-        {bits}
+      <Stretch sourceLength={text.length} targetLength={bits.length} height={3}>
+        {text}
+      </Stretch>
+
+      <div className="font-mono opacity-50">
+        {"numLengthBits" in item ? (
+          <>
+            <span className="border-t border-r pe-[1px] me-[1px]">
+              {bits.slice(0, item.numLengthBits)}
+            </span>
+            <span className="">{bits.slice(item.numLengthBits)}</span>
+          </>
+        ) : (
+          <span className="">{bits}</span>
+        )}
       </div>
     </div>
   );

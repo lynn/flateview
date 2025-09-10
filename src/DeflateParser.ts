@@ -165,20 +165,19 @@ export class DeflateParser {
     const items: DeflateItem[] = [];
 
     for (let i = 0; i < data.length; i++) {
-      const char = String.fromCharCode(data[i]);
       const bitStart = (dataStartPos.byte + i) * 8 + dataStartPos.bit;
       const bitEnd = bitStart + 8;
 
       items.push({
         type: "literal",
-        value: char,
+        symbol: data[i],
         charCode: data[i],
         position: reader.getPosition(),
         bitStart,
         bitEnd,
       });
 
-      content += `Literal: ${data[i]} ('${char}')\n`;
+      content += `Literal: ${data[i]} ('${String.fromCharCode(data[i])}')\n`;
     }
 
     return {
@@ -227,13 +226,12 @@ export class DeflateParser {
 
         if (symbol < 256) {
           // Literal byte
-          const char = String.fromCharCode(symbol);
           const newData = new Uint8Array(decompressedData.length + 1);
           newData.set(decompressedData);
           newData[decompressedData.length] = symbol;
           decompressedData = newData;
           literalCount++;
-          content += `Literal: ${symbol} ('${char}')\n`;
+          content += `Literal: ${symbol} ('${String.fromCharCode(symbol)}')\n`;
 
           const currentPos = reader.getPosition();
           const bitStart = codeStartPos.byte * 8 + codeStartPos.bit;
@@ -241,7 +239,7 @@ export class DeflateParser {
 
           items.push({
             type: "literal",
-            value: char,
+            symbol: symbol,
             charCode: symbol,
             position: currentPos,
             bitStart,
@@ -266,6 +264,7 @@ export class DeflateParser {
         } else if (symbol >= 257 && symbol <= 285) {
           // Length code
           const length = this.getLengthFromCode(symbol, reader);
+          const afterLength = reader.getBitPosition();
           const distanceResult = this.readDistanceCodeFixed(
             reader,
             fixedDistanceCodes
@@ -302,7 +301,8 @@ export class DeflateParser {
             text: repeatedText,
             position: currentPos,
             bitStart,
-            bitEnd: distanceResult.bitEnd,
+            bitEnd: currentPos.byte * 8 + currentPos.bit,
+            numLengthBits: afterLength - codeStartPos.byte * 8 - codeStartPos.bit,
           } as LZ77Item);
         }
       }
@@ -313,6 +313,18 @@ export class DeflateParser {
         error instanceof Error ? error.message : "Unknown error"
       }\n`;
     }
+
+    // Check that the end of each item is the start of the next.
+    for (let i = 0; i < items.length - 1; i++) {
+      if (items[i].bitEnd !== items[i + 1].bitStart) {
+        console.error(
+          `Item ${i} ends at ${items[i].bitEnd} but item ${i + 1} starts at ${
+            items[i + 1].bitStart
+          }`
+        );
+      }
+    }
+    console.log("Items checked");
 
     const endPos = reader.getPosition();
     return {
@@ -367,7 +379,7 @@ export class DeflateParser {
           position: { byte: Math.floor(startBit / 8), bit: startBit % 8 },
           bitStart: startBit,
           bitEnd: endBit,
-          text: `${DeflateParser.CODE_LENGTH_ORDER[i]}→${codeLength}`,
+          text: `${codeLength},`,
         } as DynamicHuffmanLengthItem);
       }
 
@@ -488,6 +500,7 @@ export class DeflateParser {
         } else if (symbol >= 257 && symbol <= 285) {
           // Length code
           const length = this.getLengthFromCode(symbol, reader);
+          const posAfterLength = reader.getPosition();
           const distanceResult = this.decodeSymbol(reader, distanceTree);
           const distance = this.getDistanceFromCode(
             distanceResult.symbol,
@@ -516,16 +529,22 @@ export class DeflateParser {
 
           // Create dynamic Huffman distance item
           const distanceCodeLength =
-            distanceTree[distanceResult.symbol]?.length || 0;
+            distanceTree[distanceResult.symbol]?.length;
           items.push({
             type: "dynamic_huffman_distance",
-            symbol: distanceResult.symbol,
+            symbol,
             text: repeatedText,
-            codeLength: distanceCodeLength,
             position: currentPos,
             bitStart: symbolResult.bitStart,
-            bitEnd: distanceResult.bitEnd,
-          } as DynamicHuffmanDistanceItem);
+            bitEnd: currentPos.byte * 8 + currentPos.bit,
+            codeLength: distanceCodeLength,
+            numLengthBits:
+              posAfterLength.byte * 8 +
+              posAfterLength.bit -
+              symbolResult.bitStart,
+            length,
+            distance,
+          } satisfies DynamicHuffmanDistanceItem);
         }
       }
 

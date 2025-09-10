@@ -17,7 +17,7 @@ interface BaseDeflateItem {
 // Literal item
 export interface LiteralItem extends BaseDeflateItem {
   type: 'literal';
-  value: string;
+  symbol: number;
   charCode: number;
 }
 
@@ -66,6 +66,9 @@ export interface DynamicHuffmanDistanceItem extends BaseDeflateItem {
   symbol: number;
   codeLength: number;
   text: Uint8Array;
+  length: number;
+  distance: number;
+  numLengthBits: number;
 }
 
 // Dynamic Huffman length item
