@@ -11,6 +11,7 @@ import * as fflate from "fflate";
 
 export const useCompression = () => {
   const [inputText, setInputText] = useState(`compression and decompression.`);
+  const [compressionLevel, setCompressionLevel] = useState(6);
   const [deflateBlocks, setDeflateBlocks] = useState<DeflateBlock[]>([]);
   const [deflateItems, setDeflateItems] = useState<DeflateItem[]>([]);
   const [currentItemIndex, setCurrentItemIndex] = useState(0);
@@ -46,7 +47,7 @@ export const useCompression = () => {
 
       // Compress the text
       const textBytes = new TextEncoder().encode(inputText);
-      const compressed = fflate.zlibSync(textBytes, { level: 9, mem: 12 });
+      const compressed = fflate.zlibSync(textBytes, { level: compressionLevel as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, mem: 12 });
       setCompressedData(compressed);
 
       // Parse DEFLATE blocks
@@ -72,7 +73,7 @@ export const useCompression = () => {
       setDeflateItems([]);
       setCompressedData(null);
     }
-  }, [inputText, parser]);
+  }, [inputText, compressionLevel, parser]);
 
   const currentItem = useMemo(() => {
     return deflateItems[currentItemIndex] || null;
@@ -167,6 +168,8 @@ export const useCompression = () => {
   return {
     inputText,
     setInputText,
+    compressionLevel,
+    setCompressionLevel,
     deflateBlocks,
     deflateItems,
     currentItemIndex,

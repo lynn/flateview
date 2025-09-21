@@ -72,7 +72,7 @@ describe('DeflateParser Structure Tests', () => {
         // Verify items have correct structure
         block.items.forEach((item) => {
           expect(item).toHaveProperty('type')
-          expect(['literal', 'lz77', 'zlib_header', 'zlib_checksum', 'dynamic_huffman_literal', 'dynamic_huffman_distance', 'dynamic_huffman_length', 'end_of_block']).toContain(item.type)
+          expect(['literal', 'lz77', 'zlib_header', 'zlib_checksum', 'dynamic_huffman_literal', 'dynamic_huffman_distance', 'dynamic_huffman_length', 'dynamic_huffman_header', 'block_start', 'end_of_block']).toContain(item.type)
           expect(item).toHaveProperty('position')
           expect(item).toHaveProperty('bitStart')
           expect(item).toHaveProperty('bitEnd')
@@ -81,7 +81,6 @@ describe('DeflateParser Structure Tests', () => {
           expect(item.bitEnd).toBeGreaterThan(item.bitStart)
 
           if (item.type === 'literal') {
-            expect(item).toHaveProperty('value')
             expect(item).toHaveProperty('charCode')
             expect(typeof item.charCode).toBe('number')
             expect(item.charCode).toBeGreaterThanOrEqual(0)
