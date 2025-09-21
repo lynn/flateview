@@ -1,6 +1,5 @@
 import React from "react";
 import type { DeflateItem } from "../types";
-import { useTheme } from "../contexts/ThemeContext";
 
 interface DeflateItemProps {
   item: DeflateItem;
@@ -134,20 +133,20 @@ export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
       case "dynamic_huffman_literal":
       case "literal":
         if (item.symbol < 127) {
-          return "bg-gray-100 text-blue-500 dark:bg-blue-800 dark:border-blue-600 dark:text-blue-100";
+          return "bg-blue-800 border-blue-600 text-blue-100";
         } else {
-          return "bg-gray-100 dark:bg-teal-800 dark:border-teal-600 dark:text-teal-100";
+          return "bg-teal-800 border-teal-600 text-teal-100";
         }
       case "lz77":
       case "dynamic_huffman_distance":
-        return "bg-gray-100 dark:bg-amber-800 dark:border-amber-600 dark:text-amber-100";
+        return "bg-amber-800 border-amber-600 text-amber-100";
       case "dynamic_huffman_header":
       case "zlib_header":
       case "zlib_checksum":
       case "block_start":
-        return "bg-gray-100 dark:bg-rose-800 dark:border-purple-600 dark:text-purple-100";
+        return "bg-rose-800 border-purple-600 text-purple-100";
       default:
-        return "bg-gray-100 dark:bg-gray-700 dark:border-gray-500 dark:text-gray-200";
+        return "bg-gray-700 border-gray-500 text-gray-200";
     }
   };
 
@@ -156,14 +155,9 @@ export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
   const typeColor = getItemTypeColor(item);
   const explanation = getItemExplanation(item);
 
-  const { theme } = useTheme();
-  const darkMode = theme === "dark";
-  const lightness = darkMode ? 0.35 : 0.95;
   const background =
-    theme === "light"
-      ? ""
-      : item.type === "dynamic_huffman_literal" || item.type === "literal"
-      ? `oklab(${lightness} ${bits.length * 0.04 - 0.15} -0.1)`
+    item.type === "dynamic_huffman_literal" || item.type === "literal"
+      ? `oklab(0.35 ${bits.length * 0.04 - 0.15} -0.1)`
       : "";
 
   return (
@@ -179,7 +173,7 @@ export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
         <span className="opacity-50">
           {"numLengthBits" in item ? (
             <>
-              <span className="border-b border-r dark:border-gray-200 border-gray-700">
+              <span className="border-b border-r border-gray-200">
                 {explanation.slice(0, explanation.indexOf("←"))}
               </span>
               <span>{explanation.slice(explanation.indexOf("←"))}</span>
@@ -197,7 +191,7 @@ export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
       <div className="font-mono opacity-50 flex mt-1">
         {"numLengthBits" in item ? (
           <>
-            <span className="border-t border-r dark:border-gray-200 border-gray-700 pe-[1px] me-[1px]">
+            <span className="border-t border-r border-gray-200 pe-[1px] me-[1px]">
               {bits.slice(0, item.numLengthBits)}
             </span>
             <span className="">{bits.slice(item.numLengthBits)}</span>

@@ -2,22 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ia-writer-mono-latin-400-normal */
+@font-face {
+  font-family: 'iA Writer Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(https://cdn.jsdelivr.net/fontsource/fonts/ia-writer-mono@latest/latin-400-normal.woff2) format('woff2'), url(https://cdn.jsdelivr.net/fontsource/fonts/ia-writer-mono@latest/latin-400-normal.woff) format('woff');
+}
+
 @layer base {
   body {
-    @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-200;
+    @apply bg-gray-900 text-gray-100;
   }
 }
 
 @layer components {
   .hex-highlight {
-    @apply bg-blue-500 dark:bg-blue-600 text-white font-bold px-1 rounded;
+    @apply bg-blue-600 text-white font-bold px-1 rounded;
   }
-  
+
   .hex-dim {
-    @apply text-gray-500 dark:text-gray-400;
+    @apply text-gray-400;
   }
-  
+
   .text-highlight {
-    @apply bg-yellow-300 dark:bg-yellow-400 text-black dark:text-gray-900 font-bold px-1 rounded;
+    @apply bg-yellow-400 text-gray-900 font-bold px-1 rounded;
   }
 }

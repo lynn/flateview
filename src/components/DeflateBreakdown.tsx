@@ -21,7 +21,7 @@ export const DeflateBreakdown: React.FC<DeflateBreakdownProps> = ({
   return (
     <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
       <h3 className="text-xl font-semibold text-gray-900 mb-4">DEFLATE Breakdown</h3>
-      
+
       <div className="mb-6">
         <input
           type="range"
@@ -61,7 +61,7 @@ export const DeflateBreakdown: React.FC<DeflateBreakdownProps> = ({
         <div className="font-mono text-sm whitespace-pre">
           {currentItem ? (
             currentItem.type === 'literal' ? (
-              `Literal: ${currentItem.charCode} ('${currentItem.value}')\n`
+              `Literal: ${currentItem.charCode} ('${String.fromCharCode(currentItem.charCode)}')\n`
             ) : currentItem.type === 'lz77' ? (
               `LZ77: length=${currentItem.length}, distance=${currentItem.distance}\nText: "${new TextDecoder().decode(currentItem.text)}"\n`
             ) : currentItem.type === 'zlib_header' ? (
@@ -73,7 +73,7 @@ export const DeflateBreakdown: React.FC<DeflateBreakdownProps> = ({
             ) : currentItem.type === 'dynamic_huffman_distance' ? (
               `Dynamic Huffman Distance: symbol=${currentItem.symbol}, codeLength=${currentItem.codeLength}\n`
             ) : currentItem.type === 'dynamic_huffman_length' ? (
-              `Dynamic Huffman Length: symbol=${currentItem.symbol}, codeLength=${currentItem.codeLength}\n`
+              `Dynamic Huffman Length: text="${currentItem.text}"\n`
             ) : currentItem.type === 'end_of_block' ? (
               `End of Block\n`
             ) : (

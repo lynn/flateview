@@ -9,11 +9,11 @@ export const StatsSection: React.FC<StatsSectionProps> = ({ stats }) => {
   if (!stats) return null;
 
   return (
-    <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+    <span className="text-sm font-semibold text-gray-400">
       {stats.originalSize} bytes → {stats.compressedSize} bytes (
       <span
         className={`font-bold ${
-          stats.ratio > 0 ? "text-red-500 dark:text-red-400" : "text-gray-900 dark:text-gray-100"
+          stats.ratio > 0 ? "text-red-400" : "text-gray-100"
         }`}
       >
         {(stats.ratio * 100).toFixed(1)}%
@@ -28,7 +28,7 @@ export const StatsSection: React.FC<StatsSectionProps> = ({ stats }) => {
           original size
         </span>
         <span className="text-lg font-bold text-gray-100">
-          {stats.originalSize} bytes
+          {stats?.originalSize} bytes
         </span>
       </div>
       <div className="flex flex-col">
@@ -36,7 +36,7 @@ export const StatsSection: React.FC<StatsSectionProps> = ({ stats }) => {
           Compressed size:
         </span>
         <span className="text-lg font-bold text-gray-100">
-          {stats.compressedSize} bytes
+          {stats?.compressedSize} bytes
         </span>
       </div>
       <div className="flex flex-col">
@@ -45,10 +45,10 @@ export const StatsSection: React.FC<StatsSectionProps> = ({ stats }) => {
         </span>
         <span
           className={`text-lg font-bold ${
-            stats.ratio < 0 ? "text-red-400" : "text-gray-100"
+            (stats?.ratio ?? 0) < 0 ? "text-red-400" : "text-gray-100"
           }`}
         >
-          {stats.ratio.toFixed(1)}%
+          {stats?.ratio.toFixed(1)}%
         </span>
       </div>
     </div>

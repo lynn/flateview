@@ -15,8 +15,8 @@ export const DeflateStream: React.FC<DeflateStreamProps> = ({
 
 
   return (
-    <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-6 transition-colors duration-200">
-      
+    <div className="bg-gray-900 p-6 rounded-lg shadow-sm border border-gray-700 mb-6">
+
       <div className="flex flex-wrap gap-x-0.5 gap-y-2">
         {deflateItems.map((item, index) => (
           <DeflateItemComponent
@@ -26,7 +26,7 @@ export const DeflateStream: React.FC<DeflateStreamProps> = ({
           />
         ))}
       </div>
-      
+
     </div>
   );
 };

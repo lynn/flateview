@@ -10,26 +10,7 @@ import type {
 import * as fflate from "fflate";
 
 export const useCompression = () => {
-  const [inputText, setInputText] =
-    useState(`Whose woods these are I think I know.
-His house is in the village though;
-He will not see me stopping here
-To watch his woods fill up with snow.
-
-My little horse must think it queer
-To stop without a farmhouse near
-Between the woods and frozen lake
-The darkest evening of the year.
-
-He gives his harness bells a shake
-To ask if there is some mistake.
-The only other sound's the sweep
-Of easy wind and downy flake.
-
-The woods are lovely, dark and deep,
-But I have promises to keep,
-And miles to go before I sleep,
-And miles to go before I sleep.`);
+  const [inputText, setInputText] = useState(`compression and decompression.`);
   const [deflateBlocks, setDeflateBlocks] = useState<DeflateBlock[]>([]);
   const [deflateItems, setDeflateItems] = useState<DeflateItem[]>([]);
   const [currentItemIndex, setCurrentItemIndex] = useState(0);
@@ -137,7 +118,7 @@ And miles to go before I sleep.`);
     for (let i = 0; i <= currentItemIndex; i++) {
       const item = deflateItems[i];
       if (item.type === "literal") {
-        decompressedSoFar += item.value!;
+        decompressedSoFar += String.fromCharCode(item.charCode);
       } else if (item.type === "lz77") {
         decompressedSoFar += new TextDecoder().decode(item.text!);
       }
@@ -155,7 +136,7 @@ And miles to go before I sleep.`);
       for (let i = 0; i < currentItemIndex; i++) {
         const prevItem = deflateItems[i];
         if (prevItem.type === "literal") {
-          result += prevItem.value!;
+          result += String.fromCharCode(prevItem.charCode);
         } else if (prevItem.type === "lz77") {
           result += new TextDecoder().decode(prevItem.text!);
         }
@@ -163,7 +144,9 @@ And miles to go before I sleep.`);
 
       // Highlight the current item
       if (currentItem.type === "literal") {
-        result += `<span class="text-highlight">${currentItem.value}</span>`;
+        result += `<span class="text-highlight">${String.fromCharCode(
+          currentItem.charCode
+        )}</span>`;
       } else if (currentItem.type === "lz77") {
         result += `<span class="text-highlight">${new TextDecoder().decode(
           currentItem.text!
