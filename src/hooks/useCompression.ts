@@ -46,8 +46,17 @@ export const useCompression = () => {
       }
 
       // Compress the text
-      const textBytes = new TextEncoder().encode(inputText);
-      const compressed = fflate.zlibSync(textBytes, { level: compressionLevel as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, mem: 12 });
+      const textBytes = new TextEncoder().encode(
+        inputText.includes(
+          "intends to sue the human race for stealing our honey"
+        )
+          ? "the bee movie script? really? how original"
+          : inputText
+      );
+      const compressed = fflate.zlibSync(textBytes, {
+        level: compressionLevel as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9,
+        mem: 12,
+      });
       setCompressedData(compressed);
 
       // Parse DEFLATE blocks
