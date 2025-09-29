@@ -158,8 +158,14 @@ export class DeflateParser {
     const startBitPos = reader.getBitPosition();
     reader.alignToByte();
 
-    const len = reader.readByte() | (reader.readByte() << 8);
-    const nlen = reader.readByte() | (reader.readByte() << 8);
+    // Capture positions for LEN/NLEN bytes so they appear in visualization
+    const headerStartPos = reader.getPosition();
+    const lenLo = reader.readByte();
+    const lenHi = reader.readByte();
+    const len = lenLo | (lenHi << 8);
+    const nlenLo = reader.readByte();
+    const nlenHi = reader.readByte();
+    const nlen = nlenLo | (nlenHi << 8);
 
     if ((len ^ nlen) !== 0xffff) {
       throw new Error("Invalid uncompressed block: LEN != ~NLEN");
@@ -178,6 +184,29 @@ export class DeflateParser {
       bitEnd: startBitPos,
       position: { byte: Math.floor((startBitPos - 3) / 8), bit: (startBitPos - 3) % 8 },
     } satisfies BlockStartItem);
+
+    // Visualize LEN and NLEN as 16-bit items spanning two bytes
+    const lenBitStart = headerStartPos.byte * 8 + headerStartPos.bit;
+    const lenBitEnd = lenBitStart + 16;
+    items.push({
+      type: "uncompressed_len16",
+      value: len,
+      position: headerStartPos,
+      bitStart: lenBitStart,
+      bitEnd: lenBitEnd,
+    } as any);
+    content += `LEN = ${len} (0x${len.toString(16).padStart(4, "0")})\n`;
+
+    const nlenBitStart = lenBitEnd;
+    const nlenBitEnd = nlenBitStart + 16;
+    items.push({
+      type: "uncompressed_nlen16",
+      value: nlen,
+      position: { byte: headerStartPos.byte + 2, bit: headerStartPos.bit },
+      bitStart: nlenBitStart,
+      bitEnd: nlenBitEnd,
+    } as any);
+    content += `NLEN = ${nlen} (0x${nlen.toString(16).padStart(4, "0")})\n`;
 
     // Update rolling window and items
     // Seed from global window to allow future backreferences across blocks

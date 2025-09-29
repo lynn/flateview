@@ -88,8 +88,19 @@ export interface EndOfBlockItem extends BaseDeflateItem {
   type: 'end_of_block';
 }
 
+// Uncompressed header items (LEN and NLEN)
+export interface UncompressedLen16Item extends BaseDeflateItem {
+  type: 'uncompressed_len16';
+  value: number; // 16-bit LEN value (little-endian)
+}
+
+export interface UncompressedNlen16Item extends BaseDeflateItem {
+  type: 'uncompressed_nlen16';
+  value: number; // 16-bit NLEN value (one's complement of LEN)
+}
+
 // Union type for all DeflateItem types
-export type DeflateItem = 
+export type DeflateItem =
   | BlockStartItem
   | LiteralItem
   | LZ77Item
@@ -99,7 +110,9 @@ export type DeflateItem =
   | DynamicHuffmanLiteralItem
   | DynamicHuffmanDistanceItem
   | DynamicHuffmanLengthItem
-  | EndOfBlockItem;
+  | EndOfBlockItem
+  | UncompressedLen16Item
+  | UncompressedNlen16Item;
 
 export interface DeflateBlock {
   type: 'uncompressed' | 'fixed' | 'dynamic';

@@ -75,6 +75,10 @@ export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
   // Get text content for this item
   const getItemText = (item: DeflateItem): string => {
     switch (item.type) {
+      case "uncompressed_len16":
+        return `len=${(item as any).value}`;
+      case "uncompressed_nlen16":
+        return `nlen=~${(~(item as any).value) & 0xffff}`;
       case "dynamic_huffman_literal":
       case "literal":
         return item.symbol < 127
@@ -104,6 +108,10 @@ export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
   // Get text content for this item
   const getItemExplanation = (item: DeflateItem): string => {
     switch (item.type) {
+      case "uncompressed_len16":
+        return `${(item as any).value.toString(16).padStart(4, "0")}`;
+      case "uncompressed_nlen16":
+        return `${(item as any).value.toString(16).padStart(4, "0")}`;
       case "dynamic_huffman_literal":
       case "literal":
         return item.symbol.toString(16).padStart(2, "0");
@@ -130,6 +138,10 @@ export const DeflateItemComponent: React.FC<DeflateItemProps> = ({
   // Get color based on item type
   const getItemTypeColor = (item: DeflateItem): string => {
     switch (item.type) {
+      case "uncompressed_len16":
+        return "bg-indigo-800 border-indigo-600 text-indigo-100";
+      case "uncompressed_nlen16":
+        return "bg-fuchsia-800 border-fuchsia-600 text-fuchsia-100";
       case "dynamic_huffman_literal":
       case "literal":
         if (item.symbol < 127) {
