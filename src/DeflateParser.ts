@@ -18,6 +18,8 @@ import type {
 } from "./types";
 
 export class DeflateParser {
+  // Rolling decompressed window across blocks to support cross-block backreferences
+  private globalDecompressed: Uint8Array = new Uint8Array(0);
   private static readonly LENGTH_TABLE: LengthTableEntry[] = [
     { code: 257, extraBits: 0, length: 3 },
     { code: 258, extraBits: 0, length: 4 },
@@ -90,6 +92,9 @@ export class DeflateParser {
   parseDeflateBlocks(zlibData: Uint8Array): DeflateBlock[] {
     const blocks: DeflateBlock[] = [];
     const reader = new BitReader(zlibData);
+
+    // Reset rolling window at the start of a parse
+    this.globalDecompressed = new Uint8Array(0);
 
     // Parse zlib header
     const zlibHeader = this.parseZlibHeader(reader);
@@ -174,6 +179,14 @@ export class DeflateParser {
       position: { byte: Math.floor((startBitPos - 3) / 8), bit: (startBitPos - 3) % 8 },
     } satisfies BlockStartItem);
 
+    // Update rolling window and items
+    // Seed from global window to allow future backreferences across blocks
+    const startLen = this.globalDecompressed.length;
+    const combined = new Uint8Array(startLen + data.length);
+    combined.set(this.globalDecompressed, 0);
+    combined.set(data, startLen);
+    this.globalDecompressed = combined;
+
     for (let i = 0; i < data.length; i++) {
       const bitStart = (dataStartPos.byte + i) * 8 + dataStartPos.bit;
       const bitEnd = bitStart + 8;
@@ -205,7 +218,8 @@ export class DeflateParser {
     const startBitPos = reader.getBitPosition();
     let content = "Fixed Huffman codes:\n";
     const items: DeflateItem[] = [];
-    let decompressedData = new Uint8Array(0);
+    // Seed with rolling window so LZ77 can reference earlier blocks
+    let decompressedData = this.globalDecompressed;
 
     items.push({
       type: "block_start",
@@ -250,6 +264,7 @@ export class DeflateParser {
           newData.set(decompressedData);
           newData[decompressedData.length] = symbol;
           decompressedData = newData;
+          this.globalDecompressed = decompressedData;
           literalCount++;
           content += `Literal: ${symbol} ('${String.fromCharCode(symbol)}')\n`;
 
@@ -308,6 +323,7 @@ export class DeflateParser {
           newData.set(decompressedData);
           newData.set(repeatedText, decompressedData.length);
           decompressedData = newData;
+          this.globalDecompressed = decompressedData;
           lengthCount++;
           distanceCount++;
           content += `LZ77: length=${length}, distance=${distance} -> "${new TextDecoder().decode(
@@ -362,7 +378,9 @@ export class DeflateParser {
     const startBitPos = reader.getBitPosition();
     let content = "Dynamic Huffman codes:\n";
     const items: DeflateItem[] = [];
-    let decompressedData = new Uint8Array(0);
+    // Start with global window so backrefs can span blocks, but also track block-local output for display
+    let decompressedData = this.globalDecompressed;
+    let blockLocal = new Uint8Array(0);
 
     items.push({
       type: "block_start",
@@ -499,10 +517,17 @@ export class DeflateParser {
         if (symbol < 256) {
           // Literal byte
           const char = String.fromCharCode(symbol);
-          const newData = new Uint8Array(decompressedData.length + 1);
-          newData.set(decompressedData);
-          newData[decompressedData.length] = symbol;
-          decompressedData = newData;
+          // Append to global and block-local outputs
+          const newGlobal = new Uint8Array(decompressedData.length + 1);
+          newGlobal.set(decompressedData);
+          newGlobal[decompressedData.length] = symbol;
+          decompressedData = newGlobal;
+          this.globalDecompressed = decompressedData;
+
+          const newLocal = new Uint8Array(blockLocal.length + 1);
+          newLocal.set(blockLocal);
+          newLocal[blockLocal.length] = symbol;
+          blockLocal = newLocal;
           literalCount++;
           content += `Literal: ${symbol} ('${char}')\n`;
 
@@ -544,12 +569,18 @@ export class DeflateParser {
             distance,
             decompressedData
           );
-          const newData = new Uint8Array(
+          const newGlobal = new Uint8Array(
             decompressedData.length + repeatedText.length
           );
-          newData.set(decompressedData);
-          newData.set(repeatedText, decompressedData.length);
-          decompressedData = newData;
+          newGlobal.set(decompressedData);
+          newGlobal.set(repeatedText, decompressedData.length);
+          decompressedData = newGlobal;
+          this.globalDecompressed = decompressedData;
+
+          const newLocal = new Uint8Array(blockLocal.length + repeatedText.length);
+          newLocal.set(blockLocal);
+          newLocal.set(repeatedText, blockLocal.length);
+          blockLocal = newLocal;
           lengthCount++;
           distanceCount++;
           content += `LZ77: length=${length}, distance=${distance} -> "${new TextDecoder().decode(
@@ -590,7 +621,7 @@ export class DeflateParser {
       size: endPos.byte - startPos.byte,
       position: startPos,
       content,
-      decompressedData: new TextDecoder().decode(decompressedData),
+      decompressedData: new TextDecoder().decode(blockLocal),
       items,
     };
   }
